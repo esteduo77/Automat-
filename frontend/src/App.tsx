@@ -223,7 +223,9 @@ export default function App() {
           <input aria-label="Nom du workflow" value={workflowName} onChange={(event) => setWorkflowName(event.target.value)} />
         </div>
         <span className="draft-status"><i /> Brouillon</span>
+        <span className="draft-status">{apiStatus}</span>
         <button className="button button-quiet" onClick={validateWorkflow}>Valider</button>
+        <button className="button button-quiet" onClick={runWorkflow}>Exécuter</button>
         <button className="button button-primary" onClick={saveDraft}>Enregistrer</button>
       </header>
 
