@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     openai_api_key: str | None = None
     openai_model: str = "gpt-4.1-mini"
     database_url: str = "sqlite:///./automation_hub.db"
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    microsoft_client_id: str | None = None
+    microsoft_client_secret: str | None = None
+    oauth_encryption_key: str | None = None
+    oauth_redirect_base: str = "http://localhost:8000"
+    frontend_base_url: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
