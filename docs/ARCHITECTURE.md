@@ -4,11 +4,21 @@
 Deliver a small, understandable foundation that can grow into a user-controlled automation platform.
 
 ## Components
-- **Web client:** React + TypeScript + Vite; it displays system status and will become the control panel.
+- **Web client:** React + TypeScript + Vite; the control panel will include a visual workflow editor.
+- **Workflow editor:** free-form canvas with draggable nodes and typed connections; a categorized block library; a per-block configuration inspector.
 - **API:** Python + FastAPI; privileged operations and provider credentials stay on the server.
+- **Workflow service and engine (planned):** validate graph definitions, version workflows, schedule node execution, pause for approvals, and record run state.
 - **AI adapter:** OpenAI Python SDK behind an integration boundary. The key is read from the server environment and is never sent to the browser.
 - **Provider adapters:** isolated modules for Google APIs and Microsoft Graph. They are placeholders in v1; OAuth flows and least-privilege scopes are future work.
-- **Persistence:** database URL is configurable. Durable job history and user preferences are a later milestone.
+- **Persistence:** planned storage for workflows, immutable versions, runs, node runs, approvals, and audit events.
+
+## Workflow editor decisions
+- **Canvas:** a node-based free-form editor, with React Flow (@xyflow/react) recommended for the frontend.
+- **Categories:** Triggers, AI, Google, Microsoft, Files & data, Conditions, Approvals, and Outputs.
+- **Execution policy:** configurable on each block (always, on_risk, or never), subject to server-enforced minimum approval requirements. Enabling a workflow does not pre-approve future sensitive actions.
+- **Execution model:** start with deterministic sequential execution and conditional branches; defer loops, parallel execution, and sub-workflows.
+
+The detailed design, data model, API proposal, safety rules, and delivery plan are documented in [WORKFLOW_EDITOR.md](./WORKFLOW_EDITOR.md).
 
 ## Request flow
 1. The browser sends a request to the FastAPI API.
@@ -25,13 +35,13 @@ Deliver a small, understandable foundation that can grow into a user-controlled 
 OpenAPI documentation is available at /docs when the backend is running locally.
 
 ## Planned milestones
-1. Add structured automation/job models and audit events.
-2. Add OpenAI task planning with strict structured outputs and bounded tools.
-3. Add human approval workflow.
-4. Add Google OAuth and Gmail/Drive/Calendar adapters.
-5. Add Microsoft OAuth and Graph adapters.
-6. Add persistence, job history, and dashboard controls.
-7. Add background execution and scheduling.
+1. Build the categorized visual canvas and block inspector.
+2. Add workflow graph models, validation, versioning, and persistence.
+3. Add a deterministic execution engine, run history, and per-block approval gates.
+4. Add safe AI blocks and structured outputs.
+5. Add Google OAuth and Gmail/Drive/Calendar adapters.
+6. Add Microsoft OAuth and Graph adapters.
+7. Add background execution, scheduling, and operational controls.
 
 ## Deliberate v1 limits
 No email sending, file deletion, external account access, or background actions are enabled yet. The initial dashboard is a starter UI, not a finished automation console.
