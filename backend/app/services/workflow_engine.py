@@ -128,12 +128,12 @@ async def execute_run(db: Session, run: WorkflowRun, workflow: Workflow, approve
                 result = _condition(config, context)
                 output = {"condition": result, "branch": "true" if result else "false"}
             elif kind == "approval.manual":
-                if node_id not in approved_node_ids:
+                if policy != "never" and node_id not in approved_node_ids:
                     step.status = "waiting_approval"
                     approval = Approval(id=str(uuid4()), run_id=run.id, node_id=node_id, summary=f"Validation requise pour le bloc « {data.get('label', kind)} ».")
                     db.add(approval); run.status = "waiting_approval"; db.commit()
                     return run
-                output = {"approved": True}
+                output = {"approved": policy == "never" or node_id in approved_node_ids}
             elif kind.startswith("ai."):
                 prompt = str(config.get("prompt") or "Analyse le contenu fourni et retourne un résultat concis.")
                 source = str(config.get("text") or context.get("text") or json.dumps(context, ensure_ascii=False))
