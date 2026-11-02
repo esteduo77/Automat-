@@ -10,4 +10,4 @@
 - Add audit records for proposed, approved, rejected, and executed actions before enabling real automations.
 - Rotate any credential immediately if it is accidentally exposed.
 
-The current starter does not yet connect to Google or Microsoft accounts and does not execute external actions.
+The current OAuth flow uses authorization code + PKCE and stores provider tokens encrypted at rest. Initial scopes are read-only. Provider workflow actions and token refresh are not implemented. The API binds to loopback by default for local development, but it has no user authentication or multi-user tenancy; do not expose it publicly. The Dockerfile binds inside the container to 0.0.0.0, so deployments must add authentication, authorization, CSRF/session protections, secret rotation, and operational controls first.
