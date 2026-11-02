@@ -44,4 +44,4 @@ OpenAPI documentation is available at /docs when the backend is running locally.
 7. Add background execution, scheduling, and operational controls.
 
 ## Deliberate v1 limits
-No email sending, file deletion, external account access, or background actions are enabled yet. The initial dashboard is a starter UI, not a finished automation console.
+No email sending, file deletion, external account access, or background actions are enabled yet. The visual workflow editor frontend is a first interactive prototype. Workflow persistence on the server, the execution engine, approval APIs, and provider integrations are not implemented yet.
