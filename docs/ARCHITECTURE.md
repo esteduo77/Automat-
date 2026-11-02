@@ -7,9 +7,9 @@ Deliver a small, understandable foundation that can grow into a user-controlled 
 - **Web client:** React + TypeScript + Vite; the control panel will include a visual workflow editor.
 - **Workflow editor:** free-form canvas with draggable nodes and typed connections; a categorized block library; a per-block configuration inspector.
 - **API:** Python + FastAPI; privileged operations and provider credentials stay on the server.
-- **Workflow service and engine (planned):** validate graph definitions, version workflows, schedule node execution, pause for approvals, and record run state.
+- **Workflow service and engine:** SQLAlchemy persistence, graph validation, version counters, immutable execution snapshots, deterministic sequential runs, IF/ELSE branches, approval pauses, and run history. Scheduled triggers and durable background execution remain future work.
 - **AI adapter:** OpenAI Python SDK behind an integration boundary. The key is read from the server environment and is never sent to the browser.
-- **Provider adapters:** isolated modules for Google APIs and Microsoft Graph. They are placeholders in v1; OAuth flows and least-privilege scopes are future work.
+- **Provider connections:** Google and Microsoft OAuth authorization-code + PKCE flows with encrypted token storage and read-only initial scopes. Provider-specific workflow actions and token refresh remain future work.
 - **Persistence:** planned storage for workflows, immutable versions, runs, node runs, approvals, and audit events.
 
 ## Workflow editor decisions
@@ -44,4 +44,4 @@ OpenAPI documentation is available at /docs when the backend is running locally.
 7. Add background execution, scheduling, and operational controls.
 
 ## Deliberate v1 limits
-No email sending, file deletion, external account access, or background actions are enabled yet. The visual workflow editor frontend is a first interactive prototype. Workflow persistence on the server, the execution engine, approval APIs, and provider integrations are not implemented yet.
+The API is intended for local development only and has no user authentication or multi-user tenancy. Do not expose it publicly. No email sending, file deletion, file modification, or other external side-effect blocks are enabled. Google/Microsoft OAuth connection is implemented, but provider workflow actions and token refresh are not. Scheduled triggers, durable background workers, and audit-event storage remain future work.
