@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   addEdge,
   Background,
@@ -23,6 +23,7 @@ type BlockData = {
   description: string;
   category: string;
   policy: Policy;
+  config?: Record<string, unknown>;
 };
 
 type HubNode = Node<BlockData, "hub">;
@@ -90,7 +91,7 @@ function WorkflowNode({ data, selected }: NodeProps<HubNode>) {
       <strong>{data.label}</strong>
       <p>{data.description}</p>
       <div className="node-policy">Validation : {data.policy === "always" ? "toujours" : data.policy === "on_risk" ? "si sensible" : "non requise"}</div>
-      <Handle type="source" position={Position.Right} />
+      {data.category === "Conditions" ? <><Handle id="true" type="source" position={Position.Right} style={{ top: "38%" }} /><Handle id="false" type="source" position={Position.Right} style={{ top: "72%" }} /></> : <Handle type="source" position={Position.Right} />}
     </div>
   );
 }
@@ -118,8 +119,21 @@ export default function App() {
   const [notice, setNotice] = useState("Reliez les blocs pour composer votre automatisation.");
   const [workflowName, setWorkflowName] = useState(savedDraft?.name ?? "Mon premier workflow");
   const [activeCategory, setActiveCategory] = useState("Tous");
+  const [workflowId, setWorkflowId] = useState<string | null>(() => window.localStorage.getItem("automation-hub-workflow-id"));
+  const [apiStatus, setApiStatus] = useState("API non vérifiée");
+  const [runStatus, setRunStatus] = useState<string | null>(null);
+  const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null);
+  const [history, setHistory] = useState<Array<{id:string;status:string;started_at:string}>>([]);
+  const [showHistory, setShowHistory] = useState(false);
+  const [integrations, setIntegrations] = useState<Record<string, {configured:boolean;connected:boolean;account:string|null}>>({});
+  const [runInput, setRunInput] = useState("{\"score\":10,\"text\":\"Exemple de contenu\"}");
 
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
+
+  useEffect(() => {
+    fetch("http://localhost:8000/api/health").then((response) => { if (!response.ok) throw new Error(); setApiStatus("API connectée"); }).catch(() => setApiStatus("API indisponible"));
+    fetch("http://localhost:8000/api/integrations").then((response) => response.json()).then(setIntegrations).catch(() => setIntegrations({}));
+  }, []);
   const categories = useMemo(() => ["Tous", ...catalog.map((item) => item.category)], []);
   const visibleCatalog = catalog.filter((group) => {
     const categoryMatches = activeCategory === "Tous" || activeCategory === group.category;
@@ -139,7 +153,7 @@ export default function App() {
       id,
       type: "hub",
       position: { x: 180 + (nodes.length % 3) * 80, y: 100 + nodes.length * 34 },
-      data: { category, label, description, policy: category === "Validation" ? "always" : category === "IA" ? "on_risk" : "never" },
+      data: { category, label, description, policy: category === "Validation" ? "always" : category === "IA" ? "on_risk" : "never", config: category === "Conditions" ? { field: "score", operator: "equals", value: 10 } : {} },
     };
     setNodes((current) => [...current, node]);
     setSelectedId(id);
