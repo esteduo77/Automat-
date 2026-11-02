@@ -31,6 +31,11 @@ def validate_graph(graph: dict) -> list[str]:
     for edge in edges:
         if edge.get("source") not in known or edge.get("target") not in known:
             errors.append("Une connexion référence un bloc inexistant.")
+    if not errors:
+        try:
+            topological_order(nodes, edges)
+        except ValueError as exc:
+            errors.append(str(exc))
     if nodes and not any(block_kind(n.get("data", {})).startswith("trigger.") for n in nodes):
         errors.append("Le workflow doit contenir un déclencheur.")
     return errors
