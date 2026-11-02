@@ -7,7 +7,7 @@
 3. Run `uvicorn backend.app.main:app --reload` from the repository root.
 4. Open `http://localhost:8000/docs` for the API reference.
 
-SQLite tables are created automatically on first API startup. Set `DATABASE_URL` to a managed database URL when moving beyond local development.
+SQLite tables are created automatically on first API startup. Set `DATABASE_URL` to a managed database URL when moving beyond local development. Existing SQLite databases created before this version need a schema migration or a fresh development database because `create_all` does not alter existing tables.
 
 ## Workflow API
 
