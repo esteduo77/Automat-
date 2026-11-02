@@ -74,17 +74,18 @@ def _condition(config: dict, context: dict) -> bool:
 
 async def _ai_call(text: str, instruction: str) -> str:
     from backend.app.config import get_settings
-    from openai import AsyncOpenAI
+    from backend.app.integrations.openai_client import get_openai_client
     settings = get_settings()
-    if not settings.openai_api_key:
-        raise RuntimeError("OPENAI_API_KEY n'est pas configurée sur le serveur.")
-    client = AsyncOpenAI(api_key=settings.openai_api_key)
-    response = await client.responses.create(
-        model=settings.openai_model,
-        instructions=instruction,
-        input=text[:20000],
-    )
-    return response.output_text
+    client = get_openai_client()
+    try:
+        response = await client.responses.create(
+            model=settings.openai_model,
+            instructions=instruction,
+            input=text[:20000],
+        )
+        return response.output_text
+    finally:
+        await client.close()
 
 async def execute_run(db: Session, run: WorkflowRun, workflow: Workflow, approved_node_ids: set[str] | None = None) -> WorkflowRun:
     approved_node_ids = approved_node_ids or set()
