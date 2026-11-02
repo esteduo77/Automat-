@@ -94,13 +94,22 @@ async def execute_run(db: Session, run: WorkflowRun, workflow: Workflow, approve
     context = dict(run.input_data or {})
     for step in run.steps:
         if step.status == "completed": context.update(step.output_data or {})
-    active_nodes = {order[0]} if order else set()
+    active_nodes = set()
     for node_id in order:
         node = node_map[node_id]
         kind = block_kind(node.get("data", {}))
         if kind.startswith("trigger."):
             active_nodes.add(node_id)
-        if node_id not in active_nodes or node_id in completed:
+        if node_id not in active_nodes:
+            continue
+        if node_id in completed:
+            prior = next((item for item in run.steps if item.node_id == node_id and item.status == "completed"), None)
+            prior_output = prior.output_data if prior else {}
+            for edge in edges:
+                if edge["source"] == node_id:
+                    handle = edge.get("sourceHandle")
+                    if kind != "condition.if_else" or handle in (("true", "yes") if prior_output.get("condition") else ("false", "no")):
+                        active_nodes.add(edge["target"])
             continue
         data = node.get("data", {})
         config = data.get("config", {})
