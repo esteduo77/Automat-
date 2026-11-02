@@ -74,7 +74,7 @@ async def run_workflow(workflow_id: str, payload: RunRequest, db: Session = Depe
     if not item: raise HTTPException(404, "Workflow introuvable.")
     errors = validate_graph(item.graph)
     if errors: raise HTTPException(422, detail=errors)
-    run = WorkflowRun(id=str(uuid4()), workflow_id=item.id, workflow_version=item.version, status="running", input_data=payload.input)
+    run = WorkflowRun(id=str(uuid4()), workflow_id=item.id, workflow_version=item.version, status="running", input_data=payload.input, graph_snapshot=item.graph)
     db.add(run); db.commit(); db.refresh(run)
     await execute_run(db, run, item)
     db.refresh(run)
