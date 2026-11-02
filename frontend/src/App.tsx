@@ -250,6 +250,12 @@ export default function App() {
             ))}
             {visibleCatalog.length === 0 && <p className="empty-state">Aucun bloc ne correspond à cette recherche.</p>}
           </div>
+          <section className="block-group integration-links">
+            <h3>Connexions de comptes</h3>
+            <a className="connect-link" href="http://localhost:8000/api/integrations/google/connect">Connecter Google</a>
+            <a className="connect-link" href="http://localhost:8000/api/integrations/microsoft/connect">Connecter Microsoft</a>
+            <small>OAuth en lecture seule. Les blocs d’action fournisseur arrivent ensuite.</small>
+          </section>
         </aside>
 
         <section className="canvas-panel" aria-label="Canvas du workflow">
