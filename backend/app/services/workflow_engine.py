@@ -41,15 +41,16 @@ def validate_graph(graph: dict) -> list[str]:
     return errors
 
 def topological_order(nodes: list[dict], edges: list[dict]) -> list[str]:
-    ids = {n["id"] for n in nodes}
-    incoming = {node_id: 0 for node_id in ids}
-    outgoing = {node_id: [] for node_id in ids}
+    node_ids = [n["id"] for n in nodes]
+    ids = set(node_ids)
+    incoming = {node_id: 0 for node_id in node_ids}
+    outgoing = {node_id: [] for node_id in node_ids}
     for edge in edges:
         source, target = edge["source"], edge["target"]
         if source not in ids or target not in ids: raise ValueError("Connexion invalide.")
         outgoing[source].append(target)
         incoming[target] += 1
-    queue = [node_id for node_id, count in incoming.items() if count == 0]
+    queue = [node_id for node_id in node_ids if incoming[node_id] == 0]
     order = []
     while queue:
         current = queue.pop(0)
