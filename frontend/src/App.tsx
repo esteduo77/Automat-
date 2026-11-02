@@ -258,9 +258,9 @@ export default function App() {
               <section className="block-group" key={group.category}>
                 <h3><span>{group.icon}</span>{group.category}</h3>
                 {group.blocks.map((block) => {
-                  const unavailable = group.category === "Google" || group.category === "Microsoft";
+                  const unavailable = group.category === "Google" || group.category === "Microsoft" || block.label === "Déclencheur planifié";
                   return <button key={block.label} className="library-block" disabled={unavailable} onClick={() => addBlock(group.category, block.label, block.description)}>
-                    <span className="add-symbol">+</span><span><strong>{block.label}</strong><small>{unavailable ? "Intégration à venir" : block.description}</small></span>
+                    <span className="add-symbol">+</span><span><strong>{block.label}</strong><small>{unavailable ? "Bientôt disponible" : block.description}</small></span>
                   </button>;
                 })}
               </section>
