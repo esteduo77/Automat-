@@ -60,7 +60,7 @@ def _condition(config: dict, context: dict) -> bool:
     actual = context.get(field)
     expected = config.get("value")
     operator = config.get("operator", "equals")
-    if operator == "equals": return actual == expected
+    if operator == "equals": return actual == expected or (actual is not None and expected is not None and str(actual) == str(expected))
     if operator == "not_equals": return actual != expected
     if operator == "contains": return str(expected).lower() in str(actual or "").lower()
     if operator == "is_true": return bool(actual)
