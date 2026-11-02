@@ -267,7 +267,7 @@ export default function App() {
               <MiniMap pannable zoomable nodeColor="#82d9b8" maskColor="rgba(7, 14, 25, 0.68)" />
             </ReactFlow>
           </div>
-          <div className="canvas-footer"><span>{nodes.length} blocs</span><span>{edges.length} connexions</span><span className="notice">{notice}</span></div>
+          <div className="canvas-footer"><span>{nodes.length} blocs</span><span>{edges.length} connexions</span><button className="history-toggle" onClick={() => { setShowHistory(!showHistory); loadHistory(); }}>Historique</button>{pendingApprovalId && <><button className="history-toggle" onClick={() => decideApproval("approve")}>Approuver</button><button className="history-toggle" onClick={() => decideApproval("reject")}>Refuser</button></>}<span className="notice">{notice}</span></div><div className="run-input"><label>Entrées de test (JSON)<input value={runInput} onChange={(event) => setRunInput(event.target.value)} /></label>{runStatus && <span>Dernière exécution : {runStatus}</span>}</div>{showHistory && <div className="history-panel"><strong>Historique des exécutions</strong>{history.length ? history.slice(0,6).map((item) => <div key={item.id}>{item.id.slice(0,8)} · {item.status} · {new Date(item.started_at).toLocaleString()}</div>) : <p>Aucune exécution enregistrée.</p>}</div>
         </section>
 
         <aside className="inspector-panel">
