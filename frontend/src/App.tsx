@@ -97,13 +97,26 @@ function WorkflowNode({ data, selected }: NodeProps<HubNode>) {
 
 const nodeTypes = { hub: WorkflowNode };
 
+type SavedDraft = { name?: string; nodes?: HubNode[]; edges?: Edge[] };
+function readDraft(): SavedDraft | null {
+  try {
+    const raw = window.localStorage.getItem("automation-hub-workflow-draft");
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SavedDraft;
+    return Array.isArray(parsed.nodes) && Array.isArray(parsed.edges) ? parsed : null;
+  } catch {
+    return null;
+  }
+}
+
 export default function App() {
-  const [nodes, setNodes, onNodesChange] = useNodesState<HubNode>(initialNodes);
-  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
-  const [selectedId, setSelectedId] = useState<string | null>("ai-summary");
+  const savedDraft = useMemo(() => readDraft(), []);
+  const [nodes, setNodes, onNodesChange] = useNodesState<HubNode>(savedDraft?.nodes ?? initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(savedDraft?.edges ?? initialEdges);
+  const [selectedId, setSelectedId] = useState<string | null>(savedDraft?.nodes?.[1]?.id ?? "ai-summary");
   const [search, setSearch] = useState("");
   const [notice, setNotice] = useState("Reliez les blocs pour composer votre automatisation.");
-  const [workflowName, setWorkflowName] = useState("Mon premier workflow");
+  const [workflowName, setWorkflowName] = useState(savedDraft?.name ?? "Mon premier workflow");
   const [activeCategory, setActiveCategory] = useState("Tous");
 
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
@@ -153,13 +166,13 @@ export default function App() {
   const saveDraft = () => {
     const draft = { name: workflowName, nodes, edges, savedAt: new Date().toISOString() };
     window.localStorage.setItem("automation-hub-workflow-draft", JSON.stringify(draft));
-    setNotice("Brouillon enregistré dans ce navigateur. La sauvegarde serveur sera ajoutée avec l'API workflows.");
+    setNotice("Brouillon enregistré dans ce navigateur et restauré lors de votre prochaine visite.");
   };
 
   return (
     <main className="workspace">
       <header className="editor-header">
-        <a className="back-link" href="/">← Dashboard</a>
+        <div className="back-link brand-link">AH <span>Automation Hub</span></div>
         <div className="workflow-title">
           <span className="eyebrow">ÉDITEUR DE WORKFLOWS</span>
           <input aria-label="Nom du workflow" value={workflowName} onChange={(event) => setWorkflowName(event.target.value)} />
