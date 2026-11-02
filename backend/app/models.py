@@ -24,7 +24,7 @@ class WorkflowRun(Base):
     workflow_version: Mapped[int] = mapped_column(Integer, nullable=False)
     status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False)
     input_data: Mapped[dict] = mapped_column(JSON, default=dict)
-    graph_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False)
+    graph_snapshot: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     output_data: Mapped[dict] = mapped_column(JSON, default=dict)
     started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
     finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
