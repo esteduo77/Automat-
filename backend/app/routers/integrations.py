@@ -85,7 +85,7 @@ def connect_provider(provider: str, db: Session = Depends(get_db)):
 async def oauth_callback(provider: str, code: str = Query(...), state: str = Query(...), db: Session = Depends(get_db)):
     if provider not in PROVIDERS: raise HTTPException(404, "Fournisseur non pris en charge.")
     saved = db.get(OAuthState, state)
-    if not saved or saved.provider != provider or saved.expires_at < datetime.now(timezone.utc):
+    if not saved or saved.provider != provider or (saved.expires_at.replace(tzinfo=timezone.utc) if saved.expires_at.tzinfo is None else saved.expires_at) < datetime.now(timezone.utc):
         raise HTTPException(400, "État OAuth invalide ou expiré.")
     cfg = PROVIDERS[provider]; settings = get_settings()
     redirect_uri = f"{settings.oauth_redirect_base.rstrip('/')}/api/integrations/{provider}/callback"
@@ -98,7 +98,7 @@ async def oauth_callback(provider: str, code: str = Query(...), state: str = Que
         }, headers={"Accept": "application/json"})
         if token_response.status_code >= 400: raise HTTPException(400, f"Échange OAuth refusé par {provider}.")
         tokens = token_response.json()
-        user_response = await client.get(cfg["userinfo"], headers={"Authorization": f"Bearer {tokens['access_token']}"})
+        user_response = await client.get(cfg["userinfo"], params={"$select": "mail,userPrincipalName,displayName"} if provider == "microsoft" else None, headers={"Authorization": "Bearer " + tokens["access_token"]})
         if user_response.status_code >= 400: raise HTTPException(400, "Impossible de lire le profil du compte connecté.")
         profile = user_response.json()
     email = profile.get("email") or profile.get("userPrincipalName") or profile.get("mail")
