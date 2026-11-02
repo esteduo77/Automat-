@@ -177,10 +177,41 @@ export default function App() {
     else setNotice("Structure valide pour cette prévisualisation. Aucune action externe n'a été exécutée.");
   };
 
-  const saveDraft = () => {
+  const saveDraft = async () => {
     const draft = { name: workflowName, nodes, edges, savedAt: new Date().toISOString() };
     window.localStorage.setItem("automation-hub-workflow-draft", JSON.stringify(draft));
-    setNotice("Brouillon enregistré dans ce navigateur et restauré lors de votre prochaine visite.");
+    try {
+      const url = workflowId ? "http://localhost:8000/api/workflows/" + workflowId : "http://localhost:8000/api/workflows";
+      const response = await fetch(url, { method: workflowId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: workflowName, nodes, edges }) });
+      const saved = await response.json();
+      if (!response.ok) throw new Error(String(saved.detail ?? "Échec de sauvegarde API"));
+      setWorkflowId(saved.id); window.localStorage.setItem("automation-hub-workflow-id", saved.id);
+      setNotice("Workflow enregistré dans la base de données."); setApiStatus("API connectée");
+    } catch (error) { setNotice("Brouillon local enregistré ; API indisponible : " + (error instanceof Error ? error.message : "erreur")); }
+  };
+
+  const loadHistory = async () => {
+    if (!workflowId) return;
+    try { const response = await fetch("http://localhost:8000/api/workflows/" + workflowId + "/runs"); if (response.ok) setHistory(await response.json()); } catch { setNotice("Impossible de charger l’historique."); }
+  };
+
+  const runWorkflow = async () => {
+    if (!workflowId) { setNotice("Enregistrez d’abord le workflow dans la base de données."); return; }
+    let input: Record<string, unknown>;
+    try { input = JSON.parse(runInput) as Record<string, unknown>; } catch { setNotice("Les entrées doivent être un JSON valide."); return; }
+    try {
+      const response = await fetch("http://localhost:8000/api/workflows/" + workflowId + "/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input }) });
+      const result = await response.json(); if (!response.ok) throw new Error(String(result.detail ?? "Exécution impossible"));
+      setRunStatus(result.status); const approval = result.approvals?.find((item: {status:string;id:string}) => item.status === "pending");
+      setPendingApprovalId(approval?.id ?? null); setNotice("Exécution : " + result.status); loadHistory();
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Erreur d’exécution"); }
+  };
+
+  const decideApproval = async (decision: "approve" | "reject") => {
+    if (!pendingApprovalId) return;
+    const response = await fetch("http://localhost:8000/api/workflows/approvals/" + pendingApprovalId + "/decision", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }) });
+    const result = await response.json(); if (!response.ok) { setNotice(String(result.detail ?? "Décision refusée")); return; }
+    setRunStatus(result.status); setPendingApprovalId(null); setNotice("Décision enregistrée : " + result.status); loadHistory();
   };
 
   return (
