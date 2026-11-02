@@ -134,4 +134,4 @@ Le déplacement n'a lieu qu'après validation si la politique du bloc l'exige.
 5. Intégrations : Google et Microsoft avec OAuth, permissions minimales et approbation obligatoire des actions sensibles.
 
 ## État actuel
-Cette spécification prépare l'architecture. Le dépôt contient actuellement le dashboard initial et le socle FastAPI ; le canvas, le moteur de workflow, la persistance et les intégrations ne sont pas encore implémentés.
+Un premier éditeur frontend est maintenant présent : canvas React Flow, blocs de démonstration déplaçables et connectables, bibliothèque filtrable par catégories, inspecteur de bloc, politique de validation configurable, validation locale de la structure et sauvegarde/restauration du brouillon dans le navigateur. Les blocs Google et Microsoft sont affichés comme indisponibles tant que les intégrations ne sont pas configurées. Le moteur backend, les API workflows, la persistance serveur, les exécutions réelles et les approbations ne sont pas encore implémentés.
