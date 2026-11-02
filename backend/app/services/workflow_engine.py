@@ -83,7 +83,7 @@ async def _ai_call(text: str, instruction: str) -> str:
 
 async def execute_run(db: Session, run: WorkflowRun, workflow: Workflow, approved_node_ids: set[str] | None = None) -> WorkflowRun:
     approved_node_ids = approved_node_ids or set()
-    graph = workflow.graph
+    graph = run.graph_snapshot or workflow.graph
     nodes = graph.get("nodes", [])
     edges = graph.get("edges", [])
     errors = validate_graph(graph)
