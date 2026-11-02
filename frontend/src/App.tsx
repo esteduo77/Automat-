@@ -1,23 +1,227 @@
-import { useEffect, useState } from "react";
-type Health = { status: string; service: string };
+import { useCallback, useMemo, useState } from "react";
+import {
+  addEdge,
+  Background,
+  BackgroundVariant,
+  Controls,
+  Handle,
+  MiniMap,
+  Position,
+  ReactFlow,
+  useEdgesState,
+  useNodesState,
+  type Connection,
+  type Edge,
+  type Node,
+  type NodeProps,
+} from "@xyflow/react";
+import "@xyflow/react/dist/style.css";
+
+type Policy = "always" | "on_risk" | "never";
+type BlockData = {
+  label: string;
+  description: string;
+  category: string;
+  policy: Policy;
+};
+
+type HubNode = Node<BlockData, "hub">;
+
+const initialNodes: HubNode[] = [
+  {
+    id: "manual-start",
+    type: "hub",
+    position: { x: 100, y: 170 },
+    data: {
+      label: "Déclencheur manuel",
+      description: "Démarre le workflow à la demande.",
+      category: "Déclencheurs",
+      policy: "never",
+    },
+  },
+  {
+    id: "ai-summary",
+    type: "hub",
+    position: { x: 440, y: 170 },
+    data: {
+      label: "Analyser avec l'IA",
+      description: "Prépare une analyse structurée du contenu.",
+      category: "IA",
+      policy: "on_risk",
+    },
+  },
+  {
+    id: "approval",
+    type: "hub",
+    position: { x: 780, y: 170 },
+    data: {
+      label: "Validation humaine",
+      description: "Attend une décision avant de continuer.",
+      category: "Validation",
+      policy: "always",
+    },
+  },
+];
+
+const initialEdges: Edge[] = [
+  { id: "start-ai", source: "manual-start", target: "ai-summary", animated: true },
+  { id: "ai-approval", source: "ai-summary", target: "approval", animated: true },
+];
+
+const catalog = [
+  { category: "Déclencheurs", icon: "◷", blocks: [{ label: "Déclencheur manuel", description: "Lancer à la demande." }, { label: "Déclencheur planifié", description: "Démarrer selon un horaire." }] },
+  { category: "IA", icon: "✦", blocks: [{ label: "Analyser avec l'IA", description: "Analyser un texte ou un contenu." }, { label: "Résumer un contenu", description: "Créer un résumé structuré." }, { label: "Classer un contenu", description: "Attribuer une catégorie." }] },
+  { category: "Conditions", icon: "⑂", blocks: [{ label: "Condition si / sinon", description: "Diriger le workflow selon un test." }] },
+  { category: "Validation", icon: "✓", blocks: [{ label: "Validation humaine", description: "Demander une approbation explicite." }] },
+  { category: "Fichiers & données", icon: "▤", blocks: [{ label: "Transformer des données", description: "Nettoyer ou convertir des champs." }] },
+  { category: "Google", icon: "G", blocks: [{ label: "Rechercher un e-mail", description: "Disponible après connexion Google." }] },
+  { category: "Microsoft", icon: "▦", blocks: [{ label: "Rechercher un message", description: "Disponible après connexion Microsoft." }] },
+  { category: "Sorties", icon: "↗", blocks: [{ label: "Afficher un résultat", description: "Terminer avec un résultat visible." }] },
+];
+
+function WorkflowNode({ data, selected }: NodeProps<HubNode>) {
+  return (
+    <div className={`workflow-node ${selected ? "selected" : ""}`}>
+      <Handle type="target" position={Position.Left} />
+      <div className="node-topline">
+        <span className="node-category">{data.category}</span>
+        <span className="node-dot" />
+      </div>
+      <strong>{data.label}</strong>
+      <p>{data.description}</p>
+      <div className="node-policy">Validation : {data.policy === "always" ? "toujours" : data.policy === "on_risk" ? "si sensible" : "non requise"}</div>
+      <Handle type="source" position={Position.Right} />
+    </div>
+  );
+}
+
+const nodeTypes = { hub: WorkflowNode };
+
 export default function App() {
-  const [health, setHealth] = useState<Health | null>(null);
-  const [error, setError] = useState("");
-  useEffect(() => {
-    fetch("/api/health").then((r) => { if (!r.ok) throw new Error(); return r.json() as Promise<Health>; })
-      .then(setHealth).catch(() => setError("API non connectée. Démarrez le backend pour vérifier son état."));
-  }, []);
-  return <main className="shell">
-    <header className="topbar"><div className="brand-mark">AH</div><div><p className="eyebrow">ESPACE D'AUTOMATISATION</p><h1>Automation Hub</h1></div><span className="version">v0.1.0</span></header>
-    <section className="hero"><p className="eyebrow">VOTRE CENTRE DE PILOTAGE</p><h2>Les automatisations, <span>au même endroit.</span></h2>
-      <p className="intro">Une base sécurisée pour connecter vos outils, préparer vos tâches et garder le contrôle sur chaque action.</p>
-      <div className="status"><span className={health ? "dot online" : "dot"} />{health ? "API opérationnelle" : error || "Vérification de l'API…"}</div>
-    </section>
-    <section className="grid" aria-label="Modules">
-      <article className="module"><div className="module-icon">✦</div><p className="eyebrow">MOTEUR IA</p><h3>OpenAI</h3><p>Compréhension des demandes et orchestration des tâches, côté serveur.</p><span className="tag">Socle préparé</span></article>
-      <article className="module"><div className="module-icon">G</div><p className="eyebrow">INTÉGRATION</p><h3>Google Workspace</h3><p>Gmail, Drive et Calendar seront ajoutés avec des autorisations ciblées.</p><span className="tag muted">À venir</span></article>
-      <article className="module"><div className="module-icon">▦</div><p className="eyebrow">INTÉGRATION</p><h3>Microsoft 365</h3><p>Outlook, OneDrive et Excel via Microsoft Graph.</p><span className="tag muted">À venir</span></article>
-    </section>
-    <footer>Automation Hub · Une action sensible ne sera jamais exécutée sans validation.</footer>
-  </main>;
+  const [nodes, setNodes, onNodesChange] = useNodesState<HubNode>(initialNodes);
+  const [edges, setEdges, onEdgesChange] = useEdgesState(initialEdges);
+  const [selectedId, setSelectedId] = useState<string | null>("ai-summary");
+  const [search, setSearch] = useState("");
+  const [notice, setNotice] = useState("Reliez les blocs pour composer votre automatisation.");
+  const [workflowName, setWorkflowName] = useState("Mon premier workflow");
+  const [activeCategory, setActiveCategory] = useState("Tous");
+
+  const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
+  const categories = useMemo(() => ["Tous", ...catalog.map((item) => item.category)], []);
+  const visibleCatalog = catalog.filter((group) => {
+    const categoryMatches = activeCategory === "Tous" || activeCategory === group.category;
+    const searchMatches = group.category.toLowerCase().includes(search.toLowerCase()) ||
+      group.blocks.some((block) => block.label.toLowerCase().includes(search.toLowerCase()));
+    return categoryMatches && searchMatches;
+  });
+
+  const onConnect = useCallback((connection: Connection) => {
+    setEdges((current) => addEdge({ ...connection, animated: true }, current));
+    setNotice("Connexion ajoutée au canvas.");
+  }, [setEdges]);
+
+  const addBlock = (category: string, label: string, description: string) => {
+    const id = `block-${Date.now()}`;
+    const node: HubNode = {
+      id,
+      type: "hub",
+      position: { x: 180 + (nodes.length % 3) * 80, y: 100 + nodes.length * 34 },
+      data: { category, label, description, policy: category === "Validation" ? "always" : category === "IA" ? "on_risk" : "never" },
+    };
+    setNodes((current) => [...current, node]);
+    setSelectedId(id);
+    setNotice(`Bloc « ${label} » ajouté. Déplacez-le et reliez-le aux autres blocs.`);
+  };
+
+  const updateSelected = (patch: Partial<BlockData>) => {
+    if (!selectedId) return;
+    setNodes((current) => current.map((node) =>
+      node.id === selectedId ? { ...node, data: { ...node.data, ...patch } } : node
+    ));
+  };
+
+  const validateWorkflow = () => {
+    const errors: string[] = [];
+    if (nodes.length === 0) errors.push("Ajoutez au moins un bloc.");
+    if (nodes.filter((node) => node.data.category === "Déclencheurs").length === 0) errors.push("Ajoutez un déclencheur.");
+    const connected = new Set(edges.flatMap((edge) => [edge.source, edge.target]));
+    if (nodes.length > 1 && connected.size < nodes.length) errors.push("Certains blocs ne sont pas reliés.");
+    if (errors.length) setNotice(`À corriger : ${errors.join(" ")}`);
+    else setNotice("Structure valide pour cette prévisualisation. Aucune action externe n'a été exécutée.");
+  };
+
+  const saveDraft = () => {
+    const draft = { name: workflowName, nodes, edges, savedAt: new Date().toISOString() };
+    window.localStorage.setItem("automation-hub-workflow-draft", JSON.stringify(draft));
+    setNotice("Brouillon enregistré dans ce navigateur. La sauvegarde serveur sera ajoutée avec l'API workflows.");
+  };
+
+  return (
+    <main className="workspace">
+      <header className="editor-header">
+        <a className="back-link" href="/">← Dashboard</a>
+        <div className="workflow-title">
+          <span className="eyebrow">ÉDITEUR DE WORKFLOWS</span>
+          <input aria-label="Nom du workflow" value={workflowName} onChange={(event) => setWorkflowName(event.target.value)} />
+        </div>
+        <span className="draft-status"><i /> Brouillon</span>
+        <button className="button button-quiet" onClick={validateWorkflow}>Valider</button>
+        <button className="button button-primary" onClick={saveDraft}>Enregistrer</button>
+      </header>
+
+      <div className="editor-layout">
+        <aside className="library-panel">
+          <div className="panel-heading"><div><span className="eyebrow">CONSTRUIRE</span><h2>Blocs</h2></div><span className="count">{catalog.reduce((sum, group) => sum + group.blocks.length, 0)}</span></div>
+          <input className="search-input" placeholder="Rechercher un bloc…" value={search} onChange={(event) => setSearch(event.target.value)} />
+          <div className="category-filter">
+            {categories.map((category) => <button key={category} className={activeCategory === category ? "category-chip active" : "category-chip"} onClick={() => setActiveCategory(category)}>{category}</button>)}
+          </div>
+          <div className="block-groups">
+            {visibleCatalog.map((group) => (
+              <section className="block-group" key={group.category}>
+                <h3><span>{group.icon}</span>{group.category}</h3>
+                {group.blocks.map((block) => {
+                  const unavailable = group.category === "Google" || group.category === "Microsoft";
+                  return <button key={block.label} className="library-block" disabled={unavailable} onClick={() => addBlock(group.category, block.label, block.description)}>
+                    <span className="add-symbol">+</span><span><strong>{block.label}</strong><small>{unavailable ? "Intégration à venir" : block.description}</small></span>
+                  </button>;
+                })}
+              </section>
+            ))}
+            {visibleCatalog.length === 0 && <p className="empty-state">Aucun bloc ne correspond à cette recherche.</p>}
+          </div>
+        </aside>
+
+        <section className="canvas-panel" aria-label="Canvas du workflow">
+          <div className="canvas-toolbar"><div><span className="eyebrow">ESPACE DE TRAVAIL</span><strong>Canvas</strong></div><span className="canvas-hint">Glissez les blocs · Reliez les ports</span></div>
+          <div className="flow-wrap">
+            <ReactFlow nodes={nodes} edges={edges} nodeTypes={nodeTypes} onNodesChange={onNodesChange} onEdgesChange={onEdgesChange} onConnect={onConnect} onNodeClick={(_, node) => setSelectedId(node.id)} onPaneClick={() => setSelectedId(null)} fitView minZoom={0.25} maxZoom={1.5} defaultEdgeOptions={{ type: "smoothstep" }}>
+              <Background variant={BackgroundVariant.Dots} gap={22} size={1} color="#34445a" />
+              <Controls />
+              <MiniMap pannable zoomable nodeColor="#82d9b8" maskColor="rgba(7, 14, 25, 0.68)" />
+            </ReactFlow>
+          </div>
+          <div className="canvas-footer"><span>{nodes.length} blocs</span><span>{edges.length} connexions</span><span className="notice">{notice}</span></div>
+        </section>
+
+        <aside className="inspector-panel">
+          <div className="panel-heading"><div><span className="eyebrow">PARAMÈTRES</span><h2>Inspecteur</h2></div><span className="inspector-icon">☷</span></div>
+          {selectedNode ? <>
+            <div className="selected-block"><span className="eyebrow">{selectedNode.data.category}</span><strong>{selectedNode.data.label}</strong><p>{selectedNode.data.description}</p></div>
+            <label className="field-label">Nom du bloc<input value={selectedNode.data.label} onChange={(event) => updateSelected({ label: event.target.value })} /></label>
+            <label className="field-label">Description<textarea rows={3} value={selectedNode.data.description} onChange={(event) => updateSelected({ description: event.target.value })} /></label>
+            <div className="policy-section"><span className="eyebrow">EXÉCUTION</span><h3>Validation humaine</h3><p>Choisissez quand ce bloc doit attendre une approbation.</p>
+              <label className="field-label">Politique<select value={selectedNode.data.policy} onChange={(event) => updateSelected({ policy: event.target.value as Policy })}>
+                <option value="always">Toujours demander</option>
+                <option value="on_risk">Seulement si sensible</option>
+                <option value="never">Pas de validation supplémentaire</option>
+              </select></label>
+              <div className="security-note">Les actions sensibles resteront soumises aux règles de sécurité du serveur, quelle que soit cette option.</div>
+            </div>
+            <button className="delete-button" onClick={() => { setNodes((current) => current.filter((node) => node.id !== selectedId)); setEdges((current) => current.filter((edge) => edge.source !== selectedId && edge.target !== selectedId)); setSelectedId(null); setNotice("Bloc supprimé du brouillon."); }}>Supprimer ce bloc</button>
+          </> : <div className="inspector-empty"><span>◇</span><strong>Aucun bloc sélectionné</strong><p>Sélectionnez un bloc sur le canvas pour modifier ses paramètres.</p></div>}
+        </aside>
+      </div>
+    </main>
+  );
 }
