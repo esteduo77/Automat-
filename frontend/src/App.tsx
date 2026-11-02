@@ -121,6 +121,7 @@ export default function App() {
   const [activeCategory, setActiveCategory] = useState("Tous");
   const [workflowId, setWorkflowId] = useState<string | null>(() => window.localStorage.getItem("automation-hub-workflow-id"));
   const [apiStatus, setApiStatus] = useState("API non vérifiée");
+  const [savedWorkflows, setSavedWorkflows] = useState<Array<{id:string;name:string}>>([]);
   const [runStatus, setRunStatus] = useState<string | null>(null);
   const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null);
   const [history, setHistory] = useState<Array<{id:string;status:string;started_at:string}>>([]);
@@ -133,6 +134,7 @@ export default function App() {
   useEffect(() => {
     fetch("http://localhost:8000/api/health").then((response) => { if (!response.ok) throw new Error(); setApiStatus("API connectée"); }).catch(() => setApiStatus("API indisponible"));
     fetch("http://localhost:8000/api/integrations").then((response) => response.json()).then(setIntegrations).catch(() => setIntegrations({}));
+    fetch("http://localhost:8000/api/workflows").then((response) => response.json()).then(setSavedWorkflows).catch(() => setSavedWorkflows([]));
   }, []);
   const categories = useMemo(() => ["Tous", ...catalog.map((item) => item.category)], []);
   const visibleCatalog = catalog.filter((group) => {
@@ -186,8 +188,23 @@ export default function App() {
       const saved = await response.json();
       if (!response.ok) throw new Error(String(saved.detail ?? "Échec de sauvegarde API"));
       setWorkflowId(saved.id); window.localStorage.setItem("automation-hub-workflow-id", saved.id);
+      setSavedWorkflows((current) => [saved, ...current.filter((item) => item.id !== saved.id)]);
       setNotice("Workflow enregistré dans la base de données."); setApiStatus("API connectée");
     } catch (error) { setNotice("Brouillon local enregistré ; API indisponible : " + (error instanceof Error ? error.message : "erreur")); }
+  };
+
+  const loadWorkflow = async (id: string) => {
+    if (!id) return;
+    try {
+      const response = await fetch("http://localhost:8000/api/workflows/" + id);
+      const saved = await response.json();
+      if (!response.ok) throw new Error(String(saved.detail ?? "Chargement impossible"));
+      setWorkflowId(saved.id); setWorkflowName(saved.name);
+      setNodes(saved.graph.nodes); setEdges(saved.graph.edges);
+      window.localStorage.setItem("automation-hub-workflow-id", saved.id);
+      window.localStorage.setItem("automation-hub-workflow-draft", JSON.stringify({ name: saved.name, nodes: saved.graph.nodes, edges: saved.graph.edges }));
+      setSelectedId(saved.graph.nodes[0]?.id ?? null); setNotice("Workflow chargé depuis la base de données.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Erreur de chargement"); }
   };
 
   const loadHistory = async () => {
