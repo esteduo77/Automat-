@@ -84,6 +84,7 @@ async def create_subscription(payload: SubscriptionRequest, user: User = Depends
                 subscription_id = "gmail:" + user.id
                 expires = datetime.fromtimestamp(int(data["expiration"]) / 1000, timezone.utc)
                 cursor = str(data.get("historyId", ""))
+                resource_id = None
                 resource = "gmail"
             elif provider == "google_drive":
                 start = await client.get("https://www.googleapis.com/drive/v3/changes/startPageToken", headers=headers)
@@ -101,7 +102,8 @@ async def create_subscription(payload: SubscriptionRequest, user: User = Depends
                 data = response.json()
                 subscription_id = channel_id
                 expires = datetime.fromtimestamp(int(data["expiration"]) / 1000, timezone.utc)
-                cursor = str(data.get("resourceId", ""))
+                cursor = str(start.json()["startPageToken"])
+                resource_id = str(data.get("resourceId", ""))
                 resource = "drive_changes"
             else:
                 resource = payload.resource or "me/messages"
@@ -121,10 +123,11 @@ async def create_subscription(payload: SubscriptionRequest, user: User = Depends
                 subscription_id = data["id"]
                 expires = datetime.fromisoformat(data["expirationDateTime"].replace("Z", "+00:00"))
                 cursor = None
+                resource_id = None
         row = ProviderSubscription(
             id=str(uuid4()), user_id=user.id, workflow_id=workflow.id, provider=provider,
             resource=resource, subscription_id=subscription_id, client_state=state,
-            expires_at=expires, cursor=cursor, enabled=True
+            expires_at=expires, cursor=cursor, resource_id=resource_id, enabled=True
         )
         db.add(row)
         db.commit()
@@ -172,9 +175,18 @@ async def microsoft_notifications(request: Request, db: Session = Depends(get_db
 @router.post("/google/gmail")
 async def google_gmail_notification(request: Request, authorization: str = Header(default=""),
                                     db: Session = Depends(get_db)):
-    expected = get_settings().google_pubsub_push_token
-    if not expected or not secrets.compare_digest(authorization, "Bearer " + expected):
-        raise HTTPException(401, "Authentification Pub/Sub invalide.")
+    settings = get_settings()
+    if not settings.google_pubsub_audience or not settings.google_pubsub_service_account:
+        raise HTTPException(503, "Identité OIDC Pub/Sub non configurée.")
+    try:
+        from google.auth.transport.requests import Request as GoogleAuthRequest
+        from google.oauth2 import id_token
+        claims = id_token.verify_oauth2_token(authorization.removeprefix("Bearer "), GoogleAuthRequest(),
+                                              audience=settings.google_pubsub_audience)
+        if claims.get("email") != settings.google_pubsub_service_account or not claims.get("email_verified"):
+            raise ValueError("Unexpected Pub/Sub service account")
+    except Exception as exc:
+        raise HTTPException(401, "Authentification Pub/Sub invalide.") from exc
     payload = await request.json()
     message = payload.get("message", {})
     try:
