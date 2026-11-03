@@ -144,6 +144,29 @@ async def create_subscription(payload: SubscriptionRequest, user: User = Depends
         raise HTTPException(502, "Impossible de créer l'abonnement fournisseur.") from exc
 
 
+
+@router.get("/subscriptions")
+def list_subscriptions(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    rows = db.scalars(select(ProviderSubscription).where(
+        ProviderSubscription.user_id == user.id
+    ).order_by(ProviderSubscription.created_at.desc())).all()
+    return [{"id": row.id, "workflow_id": row.workflow_id, "provider": row.provider,
+             "resource": row.resource, "enabled": row.enabled, "expires_at": row.expires_at}
+            for row in rows]
+
+
+@router.delete("/subscriptions/{subscription_id}")
+def disable_subscription(subscription_id: str, user: User = Depends(get_current_user),
+                         db: Session = Depends(get_db)):
+    row = db.scalar(select(ProviderSubscription).where(
+        ProviderSubscription.id == subscription_id, ProviderSubscription.user_id == user.id
+    ))
+    if not row:
+        raise HTTPException(404, "Abonnement introuvable.")
+    row.enabled = False
+    db.commit()
+    return {"id": row.id, "enabled": False}
+
 @router.get("/microsoft", response_class=PlainTextResponse)
 async def microsoft_validation(validationToken: str | None = Query(default=None)):
     if validationToken is not None:
@@ -206,7 +229,10 @@ async def google_gmail_notification(request: Request, authorization: str = Heade
         connection = db.scalar(select(OAuthConnection).where(
             OAuthConnection.user_id == row.user_id, OAuthConnection.provider == "google"))
         if connection and connection.account_email.lower() == email:
-            _queue_event(db, row, {"emailAddress": email, "historyId": data.get("historyId")})
+            incoming_history = str(data.get("historyId", ""))
+            if incoming_history and incoming_history.isdigit() and (not row.cursor or not row.cursor.isdigit() or int(incoming_history) > int(row.cursor)):
+                row.cursor = incoming_history
+            _queue_event(db, row, {"emailAddress": email, "historyId": incoming_history})
             accepted += 1
     db.commit()
     return {"accepted": accepted}
