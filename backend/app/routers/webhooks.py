@@ -47,7 +47,7 @@ async def receive_event(endpoint_id: str, request: Request, x_automation_signatu
     if errors:
         raise HTTPException(422, detail=errors)
     run = WorkflowRun(id=str(uuid4()), workflow_id=workflow.id, workflow_version=workflow.version,
-        status="queued", input_data={"trigger": "webhook", "event": event, "received_at": datetime.now(timezone.utc).isoformat()},
+        status="queued", input_data={"_trigger_type": "webhook", "trigger": "webhook", "event": event, "received_at": datetime.now(timezone.utc).isoformat()},
         graph_snapshot=workflow.graph)
     db.add(run); db.commit()
     return {"accepted": True, "run_id": run.id, "status": run.status}
