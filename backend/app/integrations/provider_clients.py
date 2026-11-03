@@ -1,3 +1,4 @@
+import base64
 """Small, server-side Google and Microsoft Graph clients for connected accounts."""
 import json
 from datetime import datetime, timedelta, timezone
