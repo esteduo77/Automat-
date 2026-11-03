@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     oauth_encryption_key: str | None = None
     oauth_redirect_base: str = "http://localhost:8000"
     frontend_base_url: str = "http://localhost:5173"
+    worker_poll_seconds: float = 2.0
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
