@@ -325,7 +325,7 @@ export default function App() {
         <span className="eyebrow">AUTOMATION HUB</span><h1>{authMode === "login" ? "Connexion" : "Créer un compte"}</h1>
         <p>Connectez-vous pour accéder à vos workflows et à vos comptes cloud privés.</p>
         <label className="field-label">Adresse e-mail<input type="email" autoComplete="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} /></label>
-        <label className="field-label">Mot de passe<input type="password" autoComplete={authMode === "login" ? "current-password" : "new-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label>
+        <label className="field-label">Mot de passe<input type="password" minLength={authMode === "register" ? 12 : undefined} autoComplete={authMode === "login" ? "current-password" : "new-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label>
         {authMode === "register" && <small>12 caractères minimum.</small>}
         {authError && <p role="alert">{authError}</p>}
         <button className="button button-primary" onClick={authenticate}>{authMode === "login" ? "Se connecter" : "Créer mon compte"}</button>
@@ -344,7 +344,7 @@ export default function App() {
         </div>
         <span className="draft-status"><i /> Brouillon</span>
         <span className="draft-status">{apiStatus}</span>
-        <button className="button button-quiet" onClick={() => { window.localStorage.removeItem("automation-hub-token"); setAuthToken(null); }}>Déconnexion</button>
+        <button className="button button-quiet" onClick={() => { window.localStorage.removeItem("automation-hub-token"); window.localStorage.removeItem("automation-hub-workflow-id"); window.localStorage.removeItem("automation-hub-workflow-draft"); setAuthToken(null); setWorkflowId(null); setNodes(initialNodes); setEdges(initialEdges); }}>Déconnexion</button>
         <button className="button button-quiet" onClick={validateWorkflow}>Valider</button>
         <button className="button button-quiet" onClick={runWorkflow}>Exécuter</button>
         {scheduleId ? <button className="button button-quiet" onClick={pauseSchedule}>Pause planification</button> : <button className="button button-quiet" onClick={scheduleWorkflow}>Planifier · 5 min</button>}
