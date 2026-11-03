@@ -10,6 +10,8 @@ from sqlalchemy.orm import Session
 from backend.app.database import get_db
 from backend.app.models import User, WebhookEndpoint, Workflow, WorkflowRun
 from backend.app.security import get_current_user
+from backend.app.config import get_settings
+from cryptography.fernet import Fernet
 from backend.app.services.workflow_engine import validate_graph
 
 router = APIRouter(prefix="/webhooks", tags=["event triggers"])
@@ -21,7 +23,14 @@ async def receive_event(endpoint_id: str, request: Request, x_automation_signatu
     if not endpoint or not endpoint.enabled:
         raise HTTPException(404, "Webhook inconnu ou désactivé.")
     raw = await request.body()
-    expected = hmac.new(endpoint.secret.encode(), raw, hashlib.sha256).hexdigest()
+    key = get_settings().oauth_encryption_key
+    if not key:
+        raise HTTPException(503, "Chiffrement des secrets webhook non configuré.")
+    try:
+        secret = Fernet(key.encode()).decrypt(endpoint.secret.encode())
+    except Exception:
+        raise HTTPException(500, "Secret webhook illisible.")
+    expected = hmac.new(secret, raw, hashlib.sha256).hexdigest()
     supplied = x_automation_signature.removeprefix("sha256=")
     if not hmac.compare_digest(expected, supplied):
         raise HTTPException(401, "Signature webhook invalide.")
@@ -47,7 +56,11 @@ def create_webhook_endpoint(workflow_id: str, user: User = Depends(get_current_u
     if not workflow:
         raise HTTPException(404, "Workflow introuvable.")
     secret = __import__("secrets").token_urlsafe(48)
-    endpoint = WebhookEndpoint(id=str(uuid4()), workflow_id=workflow.id, secret=secret, enabled=True)
+    key = get_settings().oauth_encryption_key
+    if not key:
+        raise HTTPException(503, "Configurez OAUTH_ENCRYPTION_KEY avant de créer un webhook.")
+    encrypted_secret = Fernet(key.encode()).encrypt(secret.encode()).decode()
+    endpoint = WebhookEndpoint(id=str(uuid4()), workflow_id=workflow.id, secret=encrypted_secret, enabled=True)
     db.add(endpoint); db.commit()
     return {"id": endpoint.id, "secret": secret, "path": f"/api/webhooks/{endpoint.id}",
             "signature_header": "X-Automation-Signature: sha256=<HMAC-SHA256 du corps avec le secret>"}
