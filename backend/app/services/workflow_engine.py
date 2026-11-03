@@ -15,7 +15,7 @@ def block_kind(data: dict) -> str:
     label = str(data.get("label", "")).lower()
     category = str(data.get("category", "")).lower()
     if category in ("déclencheurs", "triggers"):
-        return "trigger.schedule" if "planifié" in label else "trigger.manual"
+        return "trigger.webhook" if "webhook" in label else ("trigger.schedule" if "planifié" in label else "trigger.manual")
     if category == "ia" or "résum" in label or "analyser" in label or "classer" in label:
         return "ai.summarize" if "résum" in label else "ai.analyze"
     if category == "conditions" or "condition" in label:
@@ -123,6 +123,8 @@ async def execute_run(db: Session, run: WorkflowRun, workflow: Workflow, approve
                 output = {"triggered": True}
             elif kind == "trigger.schedule":
                 output = {"triggered": True, "scheduled": True}
+            elif kind == "trigger.webhook":
+                output = {"triggered": True, "event": context.get("event", {})}
             elif kind == "condition.if_else":
                 result = _condition(config, context); output = {"condition": result, "branch": "true" if result else "false"}
             elif kind == "approval.manual":
