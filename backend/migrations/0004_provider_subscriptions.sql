@@ -1,5 +1,5 @@
 -- Persistent native provider notification subscriptions.
-CREATE TABLE provider_subscriptions (
+CREATE TABLE IF NOT EXISTS provider_subscriptions (
     id VARCHAR(36) PRIMARY KEY,
     user_id VARCHAR(36) NOT NULL REFERENCES users(id),
     workflow_id VARCHAR(36) NOT NULL REFERENCES workflows(id) ON DELETE CASCADE,
@@ -9,6 +9,7 @@ CREATE TABLE provider_subscriptions (
     client_state VARCHAR(128) NOT NULL,
     expires_at DATETIME,
     cursor TEXT,
+    resource_id VARCHAR(200),
     enabled BOOLEAN NOT NULL DEFAULT 1,
     created_at DATETIME
 );
@@ -18,4 +19,3 @@ CREATE INDEX IF NOT EXISTS ix_provider_subscriptions_provider ON provider_subscr
 CREATE INDEX IF NOT EXISTS ix_provider_subscriptions_expires_at ON provider_subscriptions(expires_at);
 CREATE INDEX IF NOT EXISTS ix_provider_subscriptions_enabled ON provider_subscriptions(enabled);
 
-ALTER TABLE provider_subscriptions ADD COLUMN resource_id VARCHAR(200);
