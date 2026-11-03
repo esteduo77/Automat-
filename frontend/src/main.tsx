@@ -4,7 +4,7 @@ import App from "./App";
 import Dashboard from "./Dashboard";
 import "./styles.css";
 
-const page = window.location.pathname === "/editor" ? <App /> : <Dashboard />;
+const page = window.location.hash === "#editor" ? <App /> : <Dashboard />;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>{page}</React.StrictMode>
