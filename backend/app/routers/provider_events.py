@@ -72,8 +72,8 @@ async def create_subscription(payload: SubscriptionRequest, user: User = Depends
         headers = {"Authorization": f"Bearer {token}"}
         async with httpx.AsyncClient(timeout=25) as client:
             if provider == "google_gmail":
-                if not settings.google_pubsub_topic or not settings.google_pubsub_push_token:
-                    raise HTTPException(503, "Configurez GOOGLE_PUBSUB_TOPIC et GOOGLE_PUBSUB_PUSH_TOKEN.")
+                if not settings.google_pubsub_topic or not settings.google_pubsub_audience or not settings.google_pubsub_service_account:
+                    raise HTTPException(503, "Configurez GOOGLE_PUBSUB_TOPIC, GOOGLE_PUBSUB_AUDIENCE et GOOGLE_PUBSUB_SERVICE_ACCOUNT.")
                 response = await client.post(
                     "https://gmail.googleapis.com/gmail/v1/users/me/watch",
                     headers=headers,
@@ -81,7 +81,7 @@ async def create_subscription(payload: SubscriptionRequest, user: User = Depends
                 )
                 response.raise_for_status()
                 data = response.json()
-                subscription_id = "gmail:" + user.id
+                subscription_id = "gmail:" + user.id + ":" + uuid4().hex
                 expires = datetime.fromtimestamp(int(data["expiration"]) / 1000, timezone.utc)
                 cursor = str(data.get("historyId", ""))
                 resource_id = None
