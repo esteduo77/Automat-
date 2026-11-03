@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     api_host: str = "127.0.0.1"
     api_port: int = 8000
     cors_origins: str = "http://localhost:5173"
+    allowed_hosts_raw: str = "localhost,127.0.0.1,testserver,api"
     openai_api_key: str | None = None
     openai_model: str = "gpt-4.1-mini"
     database_url: str = "sqlite:///./automation_hub.db"
@@ -27,6 +28,10 @@ class Settings(BaseSettings):
     access_token_minutes: int = 60 * 12
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    @property
+    def allowed_hosts(self) -> list[str]:
+        return [host.strip() for host in self.allowed_hosts_raw.split(",") if host.strip()]
 
     @property
     def allowed_origins(self) -> list[str]:
