@@ -21,7 +21,8 @@ class Settings(BaseSettings):
     worker_poll_seconds: float = 2.0
     public_base_url: str = ""
     google_pubsub_topic: str | None = None
-    google_pubsub_push_token: str | None = None
+    google_pubsub_audience: str | None = None
+    google_pubsub_service_account: str | None = None
     jwt_secret: str = "CHANGE-ME-IN-ENVIRONMENT-AT-LEAST-32-CHARS"
     access_token_minutes: int = 60 * 12
 
