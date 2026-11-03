@@ -10,7 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 from backend.app.config import get_settings
 from backend.app.database import get_db
-from backend.app.models import OAuthConnection, OAuthState, User
+from backend.app.models import OAuthConnection, OAuthState, ProviderSubscription, User
 from backend.app.security import get_current_user
 
 router = APIRouter(prefix="/integrations", tags=["integrations"])
@@ -74,5 +74,12 @@ async def oauth_callback(provider:str,code:str=Query(...),state:str=Query(...),d
 def disconnect_provider(provider:str,user:User=Depends(get_current_user),db:Session=Depends(get_db)):
  if provider not in PROVIDERS:raise HTTPException(404,"Fournisseur non pris en charge.")
  existing=db.scalar(select(OAuthConnection).where(OAuthConnection.provider==provider,OAuthConnection.user_id==user.id))
- if existing:db.delete(existing);db.commit()
+ if existing:
+  db.delete(existing)
+  native_provider = "microsoft" if provider == "microsoft" else None
+  if native_provider:
+   db.query(ProviderSubscription).filter(ProviderSubscription.user_id == user.id, ProviderSubscription.provider == native_provider).update({"enabled": False})
+  else:
+   db.query(ProviderSubscription).filter(ProviderSubscription.user_id == user.id, ProviderSubscription.provider.in_(["google_gmail", "google_drive"])).update({"enabled": False})
+  db.commit()
  return {"provider":provider,"connected":False}
