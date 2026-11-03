@@ -199,7 +199,7 @@ export default function App() {
     window.localStorage.setItem("automation-hub-workflow-draft", JSON.stringify(draft));
     try {
       const url = workflowId ? "http://localhost:8000/api/workflows/" + workflowId : "http://localhost:8000/api/workflows";
-      const response = await fetch(url, { method: workflowId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: workflowName, nodes, edges }) });
+      const response = await apiFetch(url, { method: workflowId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: workflowName, nodes, edges }) });
       const saved = await response.json();
       if (!response.ok) throw new Error(String(saved.detail ?? "Échec de sauvegarde API"));
       setWorkflowId(saved.id); window.localStorage.setItem("automation-hub-workflow-id", saved.id);
