@@ -29,6 +29,13 @@ async def _execute_queued(run_id: str) -> None:
         if not workflow:
             run.status = "failed"; run.output_data = {"error": "Workflow not found"}
             run.finished_at = datetime.now(timezone.utc); db.commit(); return
+        # Legacy records without an owner must never execute in the multi-user app.
+        if not workflow.owner_id:
+            run.status = "failed"
+            run.output_data = {"error": "Workflow has no owner; transfer ownership before execution."}
+            run.finished_at = datetime.now(timezone.utc)
+            db.commit()
+            return
         await execute_run(db, run, workflow)
     except Exception:
         logger.exception("Background workflow run failed: %s", run_id)
