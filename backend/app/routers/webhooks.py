@@ -23,6 +23,8 @@ async def receive_event(endpoint_id: str, request: Request, x_automation_signatu
     if not endpoint or not endpoint.enabled:
         raise HTTPException(404, "Webhook inconnu ou désactivé.")
     raw = await request.body()
+    if len(raw) > 1_000_000:
+        raise HTTPException(413, "Charge webhook trop volumineuse (limite 1 Mo).")
     key = get_settings().oauth_encryption_key
     if not key:
         raise HTTPException(503, "Chiffrement des secrets webhook non configuré.")
