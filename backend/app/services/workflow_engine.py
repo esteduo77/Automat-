@@ -150,8 +150,12 @@ async def execute_run(db: Session, run: WorkflowRun, workflow: Workflow, approve
                         Approval.node_id == node_id, Approval.status == "approved"))
                     if not approved:
                         step.status = "waiting_approval"
+                        if kind.endswith(".send"):
+                            details = f"Destinataire : {config.get('to', 'non défini')} ; objet : {config.get('subject', 'sans objet')}"
+                        else:
+                            details = f"Fichier : {config.get('name') or config.get('path') or config.get('file_id') or 'non défini'}"
                         db.add(Approval(id=str(uuid4()), run_id=run.id, node_id=node_id,
-                            summary=f"Autoriser l’action externe « {data.get('label', kind)} » ?"))
+                            summary=f"Confirmer {data.get('label', kind)} — {details}"))
                         run.status = "waiting_approval"; db.commit(); return run
                 from backend.app.integrations.provider_clients import google_action, microsoft_action
                 action = google_action if kind.startswith("google.") else microsoft_action
