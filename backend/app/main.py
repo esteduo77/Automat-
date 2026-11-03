@@ -18,7 +18,7 @@ settings = get_settings()
 app = FastAPI(title=settings.app_name, version="0.4.0",
     description="A secure, extensible automation hub.")
 app.middleware("http")(security_middleware)
-app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
 app.add_middleware(CORSMiddleware, allow_origins=settings.allowed_origins,
     allow_credentials=True, allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Automation-Signature"])
