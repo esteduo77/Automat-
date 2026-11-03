@@ -152,7 +152,9 @@ async def microsoft_validation(validationToken: str | None = Query(default=None)
 
 
 @router.post("/microsoft")
-async def microsoft_notifications(request: Request, db: Session = Depends(get_db)):
+async def microsoft_notifications(request: Request, validationToken: str | None = Query(default=None), db: Session = Depends(get_db)):
+    if validationToken is not None:
+        return PlainTextResponse(validationToken)
     payload = await request.json()
     notifications = payload.get("value", [])
     accepted = 0
