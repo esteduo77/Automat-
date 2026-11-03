@@ -120,7 +120,10 @@ async def execute_run(db: Session, run: WorkflowRun, workflow: Workflow, approve
             continue
         config = data.get("config", {}); policy = data.get("policy", "on_risk")
         step = NodeRun(id=str(uuid4()), run_id=run.id, node_id=node_id, node_type=kind, status="running", input_data=context)
-        db.add(step); db.commit()
+        # Keep the already-loaded relationship collection in sync for callers
+        # that serialize or inspect this run in the same SQLAlchemy session.
+        run.steps.append(step)
+        db.commit()
         try:
             if kind == "trigger.manual":
                 output = {"triggered": True}
