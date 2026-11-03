@@ -6,10 +6,13 @@ Automation Hub is a web-based visual automation workspace built with React, Fast
 
 - Visual React Flow canvas with categorized blocks and per-block settings.
 - Workflow persistence, version counters, and immutable graph snapshots per execution.
-- Backend graph validation and deterministic sequential execution with IF/ELSE branches.
+- Backend graph validation and sequential execution with IF/ELSE branches.
 - OpenAI text-analysis/summarization nodes using a server-side API key.
 - Human approval nodes, pause/resume decisions, and run history.
-- Google and Microsoft OAuth authorization-code + PKCE connection flow, with encrypted token storage and read-only initial scopes.
+- Google and Microsoft OAuth authorization-code + PKCE, encrypted token storage, and refresh-token renewal.
+- Read-only Google Gmail search and Drive file search blocks.
+- Read-only Microsoft Outlook message search and OneDrive file search blocks.
+- Database-backed queued workflow runs and interval-based schedules.
 
 ## Local development
 
@@ -32,10 +35,10 @@ pip install -r requirements.txt
 uvicorn backend.app.main:app --reload
 ```
 
-Open the frontend at the Vite URL and the API docs at http://localhost:8000/docs. Copy `.env.example` to `.env` for local settings. Never commit real credentials.
+Open the frontend at the Vite URL and API docs at http://localhost:8000/docs. Copy `.env.example` to `.env`. Never commit real credentials.
 
 ## Important limitations
 
-This is a local-development foundation, not a production-ready multi-user service. The API has no user authentication or tenancy yet. Do not expose it publicly. Google/Microsoft account connection is implemented, but provider-specific workflow actions, token refresh, and actual Gmail/Drive/Graph operations are not yet available. Scheduled triggers, durable background jobs, audit-event storage, and real external side effects are also future work. The current engine supports manual runs, IF/ELSE, AI text nodes, approval gates, and basic data/result nodes.
+This is a local-development foundation, not a production-ready multi-user service. There is no user authentication or tenancy, so do not expose it publicly. Provider blocks are read-only; sending email, modifying or deleting files, and other external side effects are deliberately not enabled. The built-in worker and scheduler run inside one API process and use the configured database; use exactly one API process until distributed job claiming/locking is implemented. A process outage pauses queued work and schedules until restart. Webhook/event-based triggers, durable distributed workers, retry policies, audit-event storage, and production deployment controls remain future work.
 
 See [Architecture](docs/ARCHITECTURE.md), [Workflow editor](docs/WORKFLOW_EDITOR.md), [Backend workflows](docs/BACKEND_WORKFLOWS.md), and [Security](docs/SECURITY.md).
