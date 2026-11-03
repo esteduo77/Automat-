@@ -17,3 +17,5 @@ CREATE INDEX IF NOT EXISTS ix_provider_subscriptions_workflow_id ON provider_sub
 CREATE INDEX IF NOT EXISTS ix_provider_subscriptions_provider ON provider_subscriptions(provider);
 CREATE INDEX IF NOT EXISTS ix_provider_subscriptions_expires_at ON provider_subscriptions(expires_at);
 CREATE INDEX IF NOT EXISTS ix_provider_subscriptions_enabled ON provider_subscriptions(enabled);
+
+ALTER TABLE provider_subscriptions ADD COLUMN resource_id VARCHAR(200);
