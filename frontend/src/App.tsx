@@ -114,7 +114,9 @@ function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   const token = window.localStorage.getItem("automation-hub-token");
   if (token) headers.set("Authorization", "Bearer " + token);
-  return fetch(input, { ...init, headers });
+  const apiBase = (import.meta.env.VITE_API_URL ?? "").replace(/\\/$/, "");
+  const url = typeof input === "string" && input.startsWith("/api/") ? apiBase + input : input;
+  return fetch(url, { ...init, headers });
 }
 
 export default function App() {
@@ -310,7 +312,7 @@ export default function App() {
   const authenticate = async () => {
     setAuthError("");
     try {
-      const response = await fetch("/api/auth/" + authMode, {
+      const response = await apiFetch("/api/auth/" + authMode, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: authEmail, password: authPassword }),
       });
@@ -339,7 +341,7 @@ export default function App() {
   return (
     <main className="workspace">
       <header className="editor-header">
-        <div className="back-link brand-link">AH <span>Automation Hub</span></div>
+        <a className="back-link brand-link" href="/">AH <span>Automation Hub</span></a>
         <div className="workflow-title">
           <span className="eyebrow">ÉDITEUR DE WORKFLOWS</span>
           <input aria-label="Nom du workflow" value={workflowName} onChange={(event) => setWorkflowName(event.target.value)} />
