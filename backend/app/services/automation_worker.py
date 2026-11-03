@@ -56,7 +56,7 @@ async def _enqueue_due_schedules() -> None:
             if claimed.rowcount != 1:
                 continue
             workflow = db.get(Workflow, schedule.workflow_id)
-            if workflow and workflow.status == "active" and not validate_graph(workflow.graph):
+            if workflow and workflow.owner_id and workflow.status == "active" and not validate_graph(workflow.graph):
                 run = WorkflowRun(id=str(uuid4()), workflow_id=workflow.id, workflow_version=workflow.version,
                     status="queued", input_data={"trigger": "schedule", "scheduled_at": now.isoformat()},
                     graph_snapshot=workflow.graph)
