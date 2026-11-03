@@ -17,8 +17,8 @@ def _cipher():
         raise RuntimeError("OAUTH_ENCRYPTION_KEY is not configured")
     return Fernet(key.encode())
 
-async def _access_token(db: Session, provider: str) -> str:
-    connection = db.scalar(select(OAuthConnection).where(OAuthConnection.provider == provider))
+async def _access_token(db: Session, provider: str, user_id: str) -> str:
+    connection = db.scalar(select(OAuthConnection).where(OAuthConnection.provider == provider, OAuthConnection.user_id == user_id))
     if not connection:
         raise RuntimeError(f"{provider} account is not connected")
     tokens = json.loads(_cipher().decrypt(connection.encrypted_tokens.encode()).decode())
@@ -47,10 +47,43 @@ async def _access_token(db: Session, provider: str) -> str:
         raise RuntimeError(f"{provider} access token is unavailable; reconnect the account")
     return tokens["access_token"]
 
-async def google_action(db: Session, action: str, config: dict, context: dict) -> dict:
-    token = await _access_token(db, "google")
+async def google_action(db: Session, action: str, config: dict, context: dict, user_id: str) -> dict:
+    token = await _access_token(db, "google", user_id)
     headers = {"Authorization": f"Bearer {token}"}
     async with httpx.AsyncClient(timeout=30) as client:
+
+        if action == "google.gmail.send":
+            from email.message import EmailMessage
+            message = EmailMessage()
+            message["To"] = str(config.get("to") or "")
+            message["Subject"] = str(config.get("subject") or "")[:250]
+            message.set_content(str(config.get("body") or context.get("text") or "")[:100000])
+            raw = base64.urlsafe_b64encode(message.as_bytes()).decode().rstrip("=")
+            response = await client.post("https://gmail.googleapis.com/gmail/v1/users/me/messages/send",
+                json={"raw": raw}, headers=headers)
+            response.raise_for_status()
+            return {"sent": True, "message_id": response.json().get("id")}
+        if action in ("google.drive.create", "google.drive.update"):
+            name = str(config.get("name") or "").strip()
+            content = str(config.get("content") or context.get("text") or "")
+            if not name or "/" in name or chr(92) in name or name in (".", ".."):
+                raise ValueError("Nom de fichier invalide.")
+            mime = str(config.get("mime_type") or "text/plain")
+            if action == "google.drive.create":
+                boundary = "automationhub-boundary"
+                body = (f"--{boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n" +
+                    json.dumps({"name": name, "mimeType": mime}) +
+                    f"\r\n--{boundary}\r\nContent-Type: {mime}\r\n\r\n" + content +
+                    f"\r\n--{boundary}--")
+                response = await client.post("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
+                    headers={**headers, "Content-Type": f"multipart/related; boundary={boundary}"}, content=body.encode())
+            else:
+                file_id = str(config.get("file_id") or "")
+                if not file_id: raise ValueError("file_id requis pour modifier un fichier Drive.")
+                response = await client.patch(f"https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media",
+                    headers={**headers, "Content-Type": mime}, content=content.encode())
+            response.raise_for_status()
+            return {"file": response.json()}
         if action == "google.gmail.search":
             query = str(config.get("query") or "newer_than:30d")[:500]
             response = await client.get("https://gmail.googleapis.com/gmail/v1/users/me/messages",
@@ -77,11 +110,32 @@ async def google_action(db: Session, action: str, config: dict, context: dict) -
             return response.json()
     raise ValueError(f"Unsupported Google action: {action}")
 
-async def microsoft_action(db: Session, action: str, config: dict, context: dict) -> dict:
-    token = await _access_token(db, "microsoft")
+async def microsoft_action(db: Session, action: str, config: dict, context: dict, user_id: str) -> dict:
+    token = await _access_token(db, "microsoft", user_id)
     headers = {"Authorization": f"Bearer {token}", "Accept": "application/json"}
     limit = min(max(int(config.get("limit", 10)), 1), 50)
     async with httpx.AsyncClient(timeout=30) as client:
+
+        if action == "microsoft.mail.send":
+            recipient = str(config.get("to") or "")
+            if not recipient or "@" not in recipient: raise ValueError("Adresse destinataire invalide.")
+            payload = {"message": {"subject": str(config.get("subject") or "")[:250],
+                "body": {"contentType": "Text", "content": str(config.get("body") or context.get("text") or "")[:100000]},
+                "toRecipients": [{"emailAddress": {"address": recipient}}]}}
+            response = await client.post("https://graph.microsoft.com/v1.0/me/sendMail", json=payload, headers=headers)
+            response.raise_for_status()
+            return {"sent": True}
+        if action in ("microsoft.drive.create", "microsoft.drive.update"):
+            from urllib.parse import quote
+            path = str(config.get("path") or config.get("name") or "").strip().strip("/")
+            if not path or ".." in path.split("/") or chr(92) in path:
+                raise ValueError("Chemin OneDrive invalide.")
+            content = str(config.get("content") or context.get("text") or "")
+            encoded_path = "/".join(quote(part, safe="") for part in path.split("/"))
+            url = "https://graph.microsoft.com/v1.0/me/drive/root:/" + encoded_path + ":/content"
+            response = await client.put(url, content=content.encode(), headers={**headers, "Content-Type": "text/plain; charset=utf-8"})
+            response.raise_for_status()
+            return {"file": response.json()}
         if action == "microsoft.mail.search":
             params = {"$top": limit, "$select": "id,subject,from,receivedDateTime,bodyPreview,isRead",
                       "$orderby": "receivedDateTime desc"}
