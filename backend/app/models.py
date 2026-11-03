@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, ForeignKey, Integer, JSON, String, Text
+from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, JSON, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from backend.app.database import Base
 
@@ -22,7 +22,7 @@ class WorkflowRun(Base):
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     workflow_id: Mapped[str] = mapped_column(ForeignKey("workflows.id"), index=True)
     workflow_version: Mapped[int] = mapped_column(Integer, nullable=False)
-    status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False)
+    status: Mapped[str] = mapped_column(String(32), default="queued", nullable=False, index=True)
     input_data: Mapped[dict] = mapped_column(JSON, default=dict)
     graph_snapshot: Mapped[dict] = mapped_column(JSON, default=dict, nullable=False)
     output_data: Mapped[dict] = mapped_column(JSON, default=dict)
@@ -72,3 +72,12 @@ class OAuthState(Base):
     provider: Mapped[str] = mapped_column(String(24), nullable=False)
     code_verifier: Mapped[str] = mapped_column(Text, nullable=False)
     expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+class WorkflowSchedule(Base):
+    __tablename__ = "workflow_schedules"
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    workflow_id: Mapped[str] = mapped_column(ForeignKey("workflows.id", ondelete="CASCADE"), index=True)
+    enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
+    interval_seconds: Mapped[int] = mapped_column(Integer, nullable=False)
+    next_run_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
