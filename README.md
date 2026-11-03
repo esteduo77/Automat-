@@ -90,7 +90,7 @@ Use `google_drive` for Drive changes, or `microsoft` with resource `me/messages`
 
 Queued runs use database leases, heartbeat renewal, bounded retries and exponential backoff. A run interrupted while a node was actively executing is marked failed for review instead of being replayed automatically: an external write may have succeeded immediately before the crash, so blind replay could duplicate an email or file. Runs interrupted between nodes can be re-queued from completed step records.
 
-For an existing database, back up first and apply migrations `0003_worker_leases.sql` and `0004_provider_subscriptions.sql` exactly once, in that order. Fresh databases create the current schema automatically.
+For an existing database, back up first. For a v0.3 database, start the updated API once to create the new base tables, then apply `0002_multi_user_ownership.sql` exactly once. Apply `0003_worker_leases.sql` and `0004_provider_subscriptions.sql` exactly once, in that order. Migration 0004 is safe if the new subscription table was already created by startup. Fresh databases create the current schema automatically.
 
 ## Tests and build
 
