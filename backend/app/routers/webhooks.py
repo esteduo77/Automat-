@@ -12,7 +12,7 @@ from backend.app.models import User, WebhookEndpoint, Workflow, WorkflowRun
 from backend.app.security import get_current_user
 from backend.app.config import get_settings
 from cryptography.fernet import Fernet
-from backend.app.services.workflow_engine import validate_graph
+from backend.app.services.workflow_engine import validate_graph, block_kind
 
 router = APIRouter(prefix="/webhooks", tags=["event triggers"])
 
@@ -55,6 +55,12 @@ def create_webhook_endpoint(workflow_id: str, user: User = Depends(get_current_u
     workflow = db.scalar(select(Workflow).where(Workflow.id == workflow_id, Workflow.owner_id == user.id))
     if not workflow:
         raise HTTPException(404, "Workflow introuvable.")
+    errors = validate_graph(workflow.graph)
+    if errors:
+        raise HTTPException(422, detail=errors)
+    if not any(block_kind(node.get("data", {})) == "trigger.webhook" for node in workflow.graph.get("nodes", [])):
+        raise HTTPException(422, "Ajoutez un bloc Déclencheur webhook avant de créer son endpoint.")
+    workflow.status = "active"
     secret = __import__("secrets").token_urlsafe(48)
     key = get_settings().oauth_encryption_key
     if not key:
