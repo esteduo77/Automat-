@@ -75,8 +75,8 @@ const catalog = [
   { category: "Conditions", icon: "⑂", blocks: [{ label: "Condition si / sinon", description: "Diriger le workflow selon un test." }] },
   { category: "Validation", icon: "✓", blocks: [{ label: "Validation humaine", description: "Demander une approbation explicite." }] },
   { category: "Fichiers & données", icon: "▤", blocks: [{ label: "Transformer des données", description: "Nettoyer ou convertir des champs." }] },
-  { category: "Google", icon: "G", blocks: [{ label: "Rechercher un e-mail", description: "Rechercher des messages Gmail." }, { label: "Rechercher un fichier", description: "Rechercher des fichiers Google Drive." }] },
-  { category: "Microsoft", icon: "▦", blocks: [{ label: "Rechercher un message", description: "Rechercher des messages Outlook." }, { label: "Rechercher un fichier", description: "Rechercher des fichiers OneDrive." }] },
+  { category: "Google", icon: "G", blocks: [{ label: "Rechercher un e-mail", description: "Rechercher des messages Gmail." }, { label: "Rechercher un fichier", description: "Rechercher des fichiers Google Drive." }, { label: "Envoyer un e-mail", description: "Envoyer après approbation humaine." }, { label: "Créer un fichier", description: "Créer un fichier Drive après approbation." }, { label: "Modifier un fichier", description: "Mettre à jour un fichier Drive après approbation." }] },
+  { category: "Microsoft", icon: "▦", blocks: [{ label: "Rechercher un message", description: "Rechercher des messages Outlook." }, { label: "Rechercher un fichier", description: "Rechercher des fichiers OneDrive." }, { label: "Envoyer un e-mail", description: "Envoyer après approbation humaine." }, { label: "Créer un fichier", description: "Créer un fichier OneDrive après approbation." }, { label: "Modifier un fichier", description: "Mettre à jour un fichier OneDrive après approbation." }] },
   { category: "Sorties", icon: "↗", blocks: [{ label: "Afficher un résultat", description: "Terminer avec un résultat visible." }] },
 ];
 
@@ -110,6 +110,13 @@ function readDraft(): SavedDraft | null {
   }
 }
 
+function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
+  const headers = new Headers(init.headers);
+  const token = window.localStorage.getItem("automation-hub-token");
+  if (token) headers.set("Authorization", "Bearer " + token);
+  return fetch(input, { ...init, headers });
+}
+
 export default function App() {
   const savedDraft = useMemo(() => readDraft(), []);
   const [nodes, setNodes, onNodesChange] = useNodesState<HubNode>(savedDraft?.nodes ?? initialNodes);
@@ -129,14 +136,20 @@ export default function App() {
   const [integrations, setIntegrations] = useState<Record<string, {configured:boolean;connected:boolean;account:string|null}>>({});
   const [runInput, setRunInput] = useState("{\"score\":10,\"text\":\"Exemple de contenu\"}");
   const [scheduleId, setScheduleId] = useState<string | null>(null);
+  const [authToken, setAuthToken] = useState<string | null>(() => window.localStorage.getItem("automation-hub-token"));
+  const [authEmail, setAuthEmail] = useState("");
+  const [authPassword, setAuthPassword] = useState("");
+  const [authMode, setAuthMode] = useState<"login" | "register">("login");
+  const [authError, setAuthError] = useState("");
 
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
 
   useEffect(() => {
-    fetch("http://localhost:8000/api/health").then((response) => { if (!response.ok) throw new Error(); setApiStatus("API connectée"); }).catch(() => setApiStatus("API indisponible"));
-    fetch("http://localhost:8000/api/integrations").then((response) => response.json()).then(setIntegrations).catch(() => setIntegrations({}));
-    fetch("http://localhost:8000/api/workflows").then((response) => response.json()).then(setSavedWorkflows).catch(() => setSavedWorkflows([]));
-  }, []);
+    apiFetch("http://localhost:8000/api/health").then((response) => { if (!response.ok) throw new Error(); setApiStatus("API connectée"); }).catch(() => setApiStatus("API indisponible"));
+    if (!authToken) return;
+    apiFetch("http://localhost:8000/api/integrations").then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then(setIntegrations).catch(() => setIntegrations({}));
+    apiFetch("http://localhost:8000/api/workflows").then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then(setSavedWorkflows).catch(() => setSavedWorkflows([]));
+  }, [authToken]);
   const categories = useMemo(() => ["Tous", ...catalog.map((item) => item.category)], []);
   const visibleCatalog = catalog.filter((group) => {
     const categoryMatches = activeCategory === "Tous" || activeCategory === group.category;
@@ -197,7 +210,7 @@ export default function App() {
   const loadWorkflow = async (id: string) => {
     if (!id) return;
     try {
-      const response = await fetch("http://localhost:8000/api/workflows/" + id);
+      const response = await apiFetch("http://localhost:8000/api/workflows/" + id);
       const saved = await response.json();
       if (!response.ok) throw new Error(String(saved.detail ?? "Chargement impossible"));
       setWorkflowId(saved.id); setWorkflowName(saved.name);
@@ -210,7 +223,7 @@ export default function App() {
 
   const loadHistory = async () => {
     if (!workflowId) return;
-    try { const response = await fetch("http://localhost:8000/api/workflows/" + workflowId + "/runs"); if (response.ok) setHistory(await response.json()); } catch { setNotice("Impossible de charger l’historique."); }
+    try { const response = await apiFetch("http://localhost:8000/api/workflows/" + workflowId + "/runs"); if (response.ok) setHistory(await response.json()); } catch { setNotice("Impossible de charger l’historique."); }
   };
 
   const runWorkflow = async () => {
@@ -218,7 +231,7 @@ export default function App() {
     let input: Record<string, unknown>;
     try { input = JSON.parse(runInput) as Record<string, unknown>; } catch { setNotice("Les entrées doivent être un JSON valide."); return; }
     try {
-      const response = await fetch("http://localhost:8000/api/workflows/" + workflowId + "/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input }) });
+      const response = await apiFetch("http://localhost:8000/api/workflows/" + workflowId + "/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input }) });
       const result = await response.json(); if (!response.ok) throw new Error(String(result.detail ?? "Exécution impossible"));
       setRunStatus(result.status); const approval = result.approvals?.find((item: {status:string;id:string}) => item.status === "pending");
       setPendingApprovalId(approval?.id ?? null); setNotice("Exécution : " + result.status); loadHistory();
@@ -228,7 +241,7 @@ export default function App() {
   const scheduleWorkflow = async () => {
     if (!workflowId) { setNotice("Enregistrez d’abord le workflow avant de le planifier."); return; }
     try {
-      const response = await fetch("http://localhost:8000/api/automations/workflows/" + workflowId + "/schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interval_seconds: Number(nodes.find((node) => node.data.category === "Déclencheurs" && node.data.label.toLowerCase().includes("planifié"))?.data.config?.interval_seconds ?? 300) }) });
+      const response = await apiFetch("http://localhost:8000/api/automations/workflows/" + workflowId + "/schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interval_seconds: Number(nodes.find((node) => node.data.category === "Déclencheurs" && node.data.label.toLowerCase().includes("planifié"))?.data.config?.interval_seconds ?? 300) }) });
       const result = await response.json(); if (!response.ok) throw new Error(String(result.detail ?? "Planification impossible"));
       setScheduleId(result.id); setNotice("Déclencheur actif : exécution toutes les 5 minutes.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Erreur de planification"); }
@@ -236,16 +249,45 @@ export default function App() {
 
   const pauseSchedule = async () => {
     if (!scheduleId) return;
-    try { const response = await fetch("http://localhost:8000/api/automations/" + scheduleId + "/pause", { method: "POST" }); if (!response.ok) throw new Error("Pause impossible."); setScheduleId(null); setNotice("Déclencheur mis en pause."); }
+    try { const response = await apiFetch("http://localhost:8000/api/automations/" + scheduleId + "/pause", { method: "POST" }); if (!response.ok) throw new Error("Pause impossible."); setScheduleId(null); setNotice("Déclencheur mis en pause."); }
     catch (error) { setNotice(error instanceof Error ? error.message : "Erreur"); }
   };
 
   const decideApproval = async (decision: "approve" | "reject") => {
     if (!pendingApprovalId) return;
-    const response = await fetch("http://localhost:8000/api/workflows/approvals/" + pendingApprovalId + "/decision", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }) });
+    const response = await apiFetch("http://localhost:8000/api/workflows/approvals/" + pendingApprovalId + "/decision", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }) });
     const result = await response.json(); if (!response.ok) { setNotice(String(result.detail ?? "Décision refusée")); return; }
     setRunStatus(result.status); setPendingApprovalId(null); setNotice("Décision enregistrée : " + result.status); loadHistory();
   };
+
+  const authenticate = async () => {
+    setAuthError("");
+    try {
+      const response = await fetch("http://localhost:8000/api/auth/" + authMode, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: authEmail, password: authPassword }),
+      });
+      const result = await response.json();
+      if (!response.ok) throw new Error(String(result.detail ?? "Authentification impossible."));
+      window.localStorage.setItem("automation-hub-token", result.access_token);
+      setAuthToken(result.access_token); setAuthPassword("");
+    } catch (error) { setAuthError(error instanceof Error ? error.message : "Erreur de connexion."); }
+  };
+
+  if (!authToken) return (
+    <main className="workspace">
+      <section className="inspector-panel" style={{ maxWidth: 480, margin: "10vh auto", padding: 32 }}>
+        <span className="eyebrow">AUTOMATION HUB</span><h1>{authMode === "login" ? "Connexion" : "Créer un compte"}</h1>
+        <p>Connectez-vous pour accéder à vos workflows et à vos comptes cloud privés.</p>
+        <label className="field-label">Adresse e-mail<input type="email" autoComplete="email" value={authEmail} onChange={(event) => setAuthEmail(event.target.value)} /></label>
+        <label className="field-label">Mot de passe<input type="password" autoComplete={authMode === "login" ? "current-password" : "new-password"} value={authPassword} onChange={(event) => setAuthPassword(event.target.value)} /></label>
+        {authMode === "register" && <small>12 caractères minimum.</small>}
+        {authError && <p role="alert">{authError}</p>}
+        <button className="button button-primary" onClick={authenticate}>{authMode === "login" ? "Se connecter" : "Créer mon compte"}</button>
+        <button className="button button-quiet" onClick={() => setAuthMode(authMode === "login" ? "register" : "login")}>{authMode === "login" ? "Créer un compte" : "J’ai déjà un compte"}</button>
+      </section>
+    </main>
+  );
 
   return (
     <main className="workspace">
