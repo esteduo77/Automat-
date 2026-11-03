@@ -75,7 +75,7 @@ def run_workflow(workflow_id: str, payload: RunRequest, user: User = Depends(get
     errors = validate_graph(item.graph)
     if errors: raise HTTPException(422, detail=errors)
     run = WorkflowRun(id=str(uuid4()), workflow_id=item.id, workflow_version=item.version,
-        status="queued", input_data=payload.input, graph_snapshot=item.graph)
+        status="queued", input_data={**payload.input, "_trigger_type": "manual"}, graph_snapshot=item.graph)
     db.add(run); db.commit(); db.refresh(run)
     return serialize_run(run)
 
