@@ -227,6 +227,31 @@ export default function App() {
     try { const response = await apiFetch("http://localhost:8000/api/workflows/" + workflowId + "/runs"); if (response.ok) setHistory(await response.json()); } catch { setNotice("Impossible de charger l’historique."); }
   };
 
+  const pollRun = async (runId: string) => {
+    for (let attempt = 0; attempt < 60; attempt += 1) {
+      await new Promise((resolve) => window.setTimeout(resolve, 1000));
+      try {
+        const response = await apiFetch("http://localhost:8000/api/workflows/runs/" + runId);
+        if (!response.ok) return;
+        const result = await response.json();
+        setRunStatus(result.status);
+        const approval = result.approvals?.find((item: {status:string;id:string}) => item.status === "pending");
+        if (approval) {
+          setPendingApprovalId(approval.id);
+          setNotice("Une approbation humaine est nécessaire avant de poursuivre.");
+          loadHistory();
+          return;
+        }
+        if (["completed", "failed", "rejected"].includes(result.status)) {
+          setNotice("Exécution terminée : " + result.status);
+          loadHistory();
+          return;
+        }
+      } catch { return; }
+    }
+    setNotice("L’exécution continue en arrière-plan. Consultez l’historique pour son état.");
+  };
+
   const runWorkflow = async () => {
     if (!workflowId) { setNotice("Enregistrez d’abord le workflow dans la base de données."); return; }
     let input: Record<string, unknown>;
@@ -234,8 +259,7 @@ export default function App() {
     try {
       const response = await apiFetch("http://localhost:8000/api/workflows/" + workflowId + "/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input }) });
       const result = await response.json(); if (!response.ok) throw new Error(String(result.detail ?? "Exécution impossible"));
-      setRunStatus(result.status); const approval = result.approvals?.find((item: {status:string;id:string}) => item.status === "pending");
-      setPendingApprovalId(approval?.id ?? null); setNotice("Exécution : " + result.status); loadHistory();
+      setRunStatus(result.status); setPendingApprovalId(null); setNotice("Exécution placée en file : " + result.status); loadHistory(); void pollRun(result.id);
     } catch (error) { setNotice(error instanceof Error ? error.message : "Erreur d’exécution"); }
   };
 
@@ -258,7 +282,7 @@ export default function App() {
     if (!pendingApprovalId) return;
     const response = await apiFetch("http://localhost:8000/api/workflows/approvals/" + pendingApprovalId + "/decision", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }) });
     const result = await response.json(); if (!response.ok) { setNotice(String(result.detail ?? "Décision refusée")); return; }
-    setRunStatus(result.status); setPendingApprovalId(null); setNotice("Décision enregistrée : " + result.status); loadHistory();
+    setRunStatus(result.status); setPendingApprovalId(null); setNotice("Décision enregistrée : " + result.status); loadHistory(); if (decision === "approve") void pollRun(result.id);
   };
 
   const createWebhook = async () => {
