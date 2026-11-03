@@ -21,18 +21,24 @@ def verify_password(password: str, hashed: str) -> bool:
     except Exception:
         return False
 
+def _jwt_secret() -> str:
+    settings = get_settings()
+    if settings.app_env.lower() == "production" and (len(settings.jwt_secret) < 32 or settings.jwt_secret.startswith("CHANGE-ME")):
+        raise HTTPException(503, "JWT_SECRET doit être une valeur aléatoire de 32 caractères minimum en production.")
+    return settings.jwt_secret
+
 def create_access_token(user_id: str) -> str:
     settings = get_settings()
     now = datetime.now(timezone.utc)
     return jwt.encode({"sub": user_id, "iat": now, "exp": now + timedelta(minutes=settings.access_token_minutes)},
-                      settings.jwt_secret, algorithm="HS256")
+                      _jwt_secret(), algorithm="HS256")
 
 def get_current_user(credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
                      db: Session = Depends(get_db)) -> User:
     if not credentials:
         raise HTTPException(401, "Authentification requise.", headers={"WWW-Authenticate": "Bearer"})
     try:
-        payload = jwt.decode(credentials.credentials, get_settings().jwt_secret, algorithms=["HS256"])
+        payload = jwt.decode(credentials.credentials, _jwt_secret(), algorithms=["HS256"])
         user_id = payload.get("sub")
     except jwt.PyJWTError:
         raise HTTPException(401, "Session invalide ou expirée.", headers={"WWW-Authenticate": "Bearer"})
