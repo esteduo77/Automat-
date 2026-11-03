@@ -1,47 +1,34 @@
 # Architecture — Automation Hub v1
 
 ## Goals
-Deliver a small, understandable foundation that can grow into a user-controlled automation platform.
+A user-controlled automation platform with explicit permissions and traceable execution.
 
 ## Components
-- **Web client:** React + TypeScript + Vite; the control panel will include a visual workflow editor.
-- **Workflow editor:** free-form canvas with draggable nodes and typed connections; a categorized block library; a per-block configuration inspector.
-- **API:** Python + FastAPI; privileged operations and provider credentials stay on the server.
-- **Workflow service and engine:** SQLAlchemy persistence, graph validation, version counters, immutable execution snapshots, deterministic sequential runs, IF/ELSE branches, approval pauses, and run history. Scheduled triggers and durable background execution remain future work.
-- **AI adapter:** OpenAI Python SDK behind an integration boundary. The key is read from the server environment and is never sent to the browser.
-- **Provider connections:** Google and Microsoft OAuth authorization-code + PKCE flows with encrypted token storage and read-only initial scopes. Provider-specific workflow actions and token refresh remain future work.
-- **Persistence:** planned storage for workflows, immutable versions, runs, node runs, approvals, and audit events.
+- **Web client:** React + TypeScript + Vite with a React Flow canvas and categorized block library.
+- **API:** FastAPI with JWT authentication; workflows, runs, approvals, schedules and OAuth connections are scoped to the authenticated owner.
+- **Workflow engine:** SQLAlchemy persistence, graph validation, versioned snapshots, deterministic sequential execution, IF/ELSE, approval pauses and run history.
+- **Worker:** separate process (`python -m backend.app.worker`) polling a database queue. Conditional updates atomically claim runs and due schedules.
+- **AI adapter:** OpenAI SDK; credentials remain server-side.
+- **Provider adapters:** Google OAuth and Microsoft OAuth with per-user encrypted tokens; read/search plus approved send and text-file create/update operations.
+- **Event ingress:** signed generic webhook endpoints. Provider-native Gmail Pub/Sub and Microsoft Graph subscription management are not yet implemented.
+- **Persistence:** workflows, runs, node runs, approvals, OAuth state/connections, users, schedules and webhook endpoints.
 
-## Workflow editor decisions
-- **Canvas:** a node-based free-form editor, with React Flow (@xyflow/react) recommended for the frontend.
-- **Categories:** Triggers, AI, Google, Microsoft, Files & data, Conditions, Approvals, and Outputs.
-- **Execution policy:** configurable on each block (always, on_risk, or never), subject to server-enforced minimum approval requirements. Enabling a workflow does not pre-approve future sensitive actions.
-- **Execution model:** start with deterministic sequential execution and conditional branches; defer loops, parallel execution, and sub-workflows.
-
-The detailed design, data model, API proposal, safety rules, and delivery plan are documented in [WORKFLOW_EDITOR.md](./WORKFLOW_EDITOR.md).
+## Execution and safety
+- Every external write action (send email, create file, update file) requires a server-side approval record. The UI policy cannot bypass this gate.
+- OAuth connections are isolated by user; the OAuth callback state is bound to the initiating account.
+- Webhook signing secrets and OAuth tokens are encrypted at rest using Fernet.
+- File deletion and other destructive actions are not enabled.
+- A workflow is activated when its owner creates a schedule or webhook endpoint, after graph validation.
 
 ## Request flow
-1. The browser sends a request to the FastAPI API.
-2. The API validates the request and checks permissions.
-3. An automation service may ask the OpenAI adapter to interpret or plan the task.
-4. The service returns a proposed action.
-5. Sensitive operations require explicit user approval before execution.
-6. The result is recorded for auditability (audit storage is planned, not yet implemented).
+1. The browser authenticates and sends a bearer JWT.
+2. The API scopes data access to the authenticated user.
+3. Manual, scheduled or signed-webhook triggers enqueue an immutable workflow snapshot.
+4. A separate worker atomically claims the run and executes it.
+5. Sensitive write nodes pause for explicit human approval; the worker resumes and performs the operation only after approval.
+6. Run and node results are persisted for history.
 
-## Initial API
-- GET / — service metadata
-- GET /api/health — health check
+## Current limitations
+This is a development foundation, not production-ready. Authentication still needs email verification, password recovery, rate limiting, refresh/revocation and MFA. The worker needs leases, crash recovery, retry/backoff, dead-letter handling and monitoring. Direct Google/Microsoft event subscription provisioning and renewal are not yet included. Automated test and frontend build verification are still required. Use PostgreSQL for concurrent deployments; SQLite is intended for local development.
 
-OpenAPI documentation is available at /docs when the backend is running locally.
-
-## Planned milestones
-1. Build the categorized visual canvas and block inspector.
-2. Add workflow graph models, validation, versioning, and persistence.
-3. Add a deterministic execution engine, run history, and per-block approval gates.
-4. Add safe AI blocks and structured outputs.
-5. Add Google OAuth and Gmail/Drive/Calendar adapters.
-6. Add Microsoft OAuth and Graph adapters.
-7. Add background execution, scheduling, and operational controls.
-
-## Deliberate v1 limits
-The API is intended for local development only and has no user authentication or multi-user tenancy. Do not expose it publicly. No email sending, file deletion, file modification, or other external side-effect blocks are enabled. Google/Microsoft OAuth connection is implemented, but provider workflow actions and token refresh are not. Scheduled triggers, durable background workers, and audit-event storage remain future work.
+See [WORKFLOW_EDITOR.md](./WORKFLOW_EDITOR.md), [BACKEND_WORKFLOWS.md](./BACKEND_WORKFLOWS.md), and [SECURITY.md](./SECURITY.md).
