@@ -147,10 +147,10 @@ export default function App() {
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
 
   useEffect(() => {
-    apiFetch("http://localhost:8000/api/health").then((response) => { if (!response.ok) throw new Error(); setApiStatus("API connectée"); }).catch(() => setApiStatus("API indisponible"));
+    apiFetch("/api/health").then((response) => { if (!response.ok) throw new Error(); setApiStatus("API connectée"); }).catch(() => setApiStatus("API indisponible"));
     if (!authToken) return;
-    apiFetch("http://localhost:8000/api/integrations").then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then(setIntegrations).catch(() => setIntegrations({}));
-    apiFetch("http://localhost:8000/api/workflows").then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then(setSavedWorkflows).catch(() => setSavedWorkflows([]));
+    apiFetch("/api/integrations").then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then(setIntegrations).catch(() => setIntegrations({}));
+    apiFetch("/api/workflows").then((response) => { if (!response.ok) throw new Error(); return response.json(); }).then(setSavedWorkflows).catch(() => setSavedWorkflows([]));
   }, [authToken]);
   const categories = useMemo(() => ["Tous", ...catalog.map((item) => item.category)], []);
   const visibleCatalog = catalog.filter((group) => {
@@ -199,7 +199,7 @@ export default function App() {
     const draft = { name: workflowName, nodes, edges, savedAt: new Date().toISOString() };
     window.localStorage.setItem("automation-hub-workflow-draft", JSON.stringify(draft));
     try {
-      const url = workflowId ? "http://localhost:8000/api/workflows/" + workflowId : "http://localhost:8000/api/workflows";
+      const url = workflowId ? "/api/workflows/" + workflowId : "/api/workflows";
       const response = await apiFetch(url, { method: workflowId ? "PUT" : "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ name: workflowName, nodes, edges }) });
       const saved = await response.json();
       if (!response.ok) throw new Error(String(saved.detail ?? "Échec de sauvegarde API"));
@@ -212,7 +212,7 @@ export default function App() {
   const loadWorkflow = async (id: string) => {
     if (!id) return;
     try {
-      const response = await apiFetch("http://localhost:8000/api/workflows/" + id);
+      const response = await apiFetch("/api/workflows/" + id);
       const saved = await response.json();
       if (!response.ok) throw new Error(String(saved.detail ?? "Chargement impossible"));
       setWorkflowId(saved.id); setWorkflowName(saved.name);
@@ -225,14 +225,14 @@ export default function App() {
 
   const loadHistory = async () => {
     if (!workflowId) return;
-    try { const response = await apiFetch("http://localhost:8000/api/workflows/" + workflowId + "/runs"); if (response.ok) setHistory(await response.json()); } catch { setNotice("Impossible de charger l’historique."); }
+    try { const response = await apiFetch("/api/workflows/" + workflowId + "/runs"); if (response.ok) setHistory(await response.json()); } catch { setNotice("Impossible de charger l’historique."); }
   };
 
   const pollRun = async (runId: string) => {
     for (let attempt = 0; attempt < 60; attempt += 1) {
       await new Promise((resolve) => window.setTimeout(resolve, 1000));
       try {
-        const response = await apiFetch("http://localhost:8000/api/workflows/runs/" + runId);
+        const response = await apiFetch("/api/workflows/runs/" + runId);
         if (!response.ok) return;
         const result = await response.json();
         setRunStatus(result.status);
@@ -259,7 +259,7 @@ export default function App() {
     let input: Record<string, unknown>;
     try { input = JSON.parse(runInput) as Record<string, unknown>; } catch { setNotice("Les entrées doivent être un JSON valide."); return; }
     try {
-      const response = await apiFetch("http://localhost:8000/api/workflows/" + workflowId + "/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input }) });
+      const response = await apiFetch("/api/workflows/" + workflowId + "/runs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ input }) });
       const result = await response.json(); if (!response.ok) throw new Error(String(result.detail ?? "Exécution impossible"));
       setRunStatus(result.status); setPendingApprovalId(null); setNotice("Exécution placée en file : " + result.status); loadHistory(); void pollRun(result.id);
     } catch (error) { setNotice(error instanceof Error ? error.message : "Erreur d’exécution"); }
@@ -268,7 +268,7 @@ export default function App() {
   const scheduleWorkflow = async () => {
     if (!workflowId) { setNotice("Enregistrez d’abord le workflow avant de le planifier."); return; }
     try {
-      const response = await apiFetch("http://localhost:8000/api/automations/workflows/" + workflowId + "/schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interval_seconds: Number(nodes.find((node) => node.data.category === "Déclencheurs" && node.data.label.toLowerCase().includes("planifié"))?.data.config?.interval_seconds ?? 300) }) });
+      const response = await apiFetch("/api/automations/workflows/" + workflowId + "/schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interval_seconds: Number(nodes.find((node) => node.data.category === "Déclencheurs" && node.data.label.toLowerCase().includes("planifié"))?.data.config?.interval_seconds ?? 300) }) });
       const result = await response.json(); if (!response.ok) throw new Error(String(result.detail ?? "Planification impossible"));
       setScheduleId(result.id); setNotice("Déclencheur actif : exécution toutes les 5 minutes.");
     } catch (error) { setNotice(error instanceof Error ? error.message : "Erreur de planification"); }
@@ -276,13 +276,13 @@ export default function App() {
 
   const pauseSchedule = async () => {
     if (!scheduleId) return;
-    try { const response = await apiFetch("http://localhost:8000/api/automations/" + scheduleId + "/pause", { method: "POST" }); if (!response.ok) throw new Error("Pause impossible."); setScheduleId(null); setNotice("Déclencheur mis en pause."); }
+    try { const response = await apiFetch("/api/automations/" + scheduleId + "/pause", { method: "POST" }); if (!response.ok) throw new Error("Pause impossible."); setScheduleId(null); setNotice("Déclencheur mis en pause."); }
     catch (error) { setNotice(error instanceof Error ? error.message : "Erreur"); }
   };
 
   const decideApproval = async (decision: "approve" | "reject") => {
     if (!pendingApprovalId) return;
-    const response = await apiFetch("http://localhost:8000/api/workflows/approvals/" + pendingApprovalId + "/decision", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }) });
+    const response = await apiFetch("/api/workflows/approvals/" + pendingApprovalId + "/decision", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }) });
     const result = await response.json(); if (!response.ok) { setNotice(String(result.detail ?? "Décision refusée")); return; }
     setRunStatus(result.status); setPendingApprovalId(null); setPendingApprovalSummary(""); setNotice("Décision enregistrée : " + result.status); loadHistory(); if (decision === "approve") void pollRun(result.id);
   };
@@ -290,7 +290,7 @@ export default function App() {
   const createWebhook = async () => {
     if (!workflowId) { setNotice("Enregistrez le workflow avant de créer son webhook."); return; }
     try {
-      const response = await apiFetch("http://localhost:8000/api/webhooks/workflows/" + workflowId + "/endpoint", { method: "POST" });
+      const response = await apiFetch("/api/webhooks/workflows/" + workflowId + "/endpoint", { method: "POST" });
       const result = await response.json();
       if (!response.ok) throw new Error(String(result.detail ?? "Création du webhook impossible."));
       setWebhookInfo({ path: result.path, secret: result.secret });
@@ -300,7 +300,7 @@ export default function App() {
 
   const startOAuth = async (provider: "google" | "microsoft") => {
     try {
-      const response = await apiFetch("http://localhost:8000/api/integrations/" + provider + "/connect");
+      const response = await apiFetch("/api/integrations/" + provider + "/connect");
       const result = await response.json();
       if (!response.ok) throw new Error(String(result.detail ?? "Connexion fournisseur impossible."));
       window.location.assign(result.authorization_url);
@@ -310,7 +310,7 @@ export default function App() {
   const authenticate = async () => {
     setAuthError("");
     try {
-      const response = await fetch("http://localhost:8000/api/auth/" + authMode, {
+      const response = await fetch("/api/auth/" + authMode, {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email: authEmail, password: authPassword }),
       });
