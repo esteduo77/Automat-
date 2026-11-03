@@ -119,5 +119,6 @@ class ProviderSubscription(Base):
     client_state: Mapped[str] = mapped_column(String(128), nullable=False)
     expires_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
     cursor: Mapped[str | None] = mapped_column(Text, nullable=True)
+    resource_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
     enabled: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False, index=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=now_utc)
