@@ -114,7 +114,7 @@ function apiFetch(input: RequestInfo | URL, init: RequestInit = {}) {
   const headers = new Headers(init.headers);
   const token = window.localStorage.getItem("automation-hub-token");
   if (token) headers.set("Authorization", "Bearer " + token);
-  const apiBase = (import.meta.env.VITE_API_URL ?? "").replace(/\\/$/, "");
+  const apiBase = import.meta.env.VITE_API_URL ?? "";
   const url = typeof input === "string" && input.startsWith("/api/") ? apiBase + input : input;
   return fetch(url, { ...init, headers });
 }
