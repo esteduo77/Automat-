@@ -162,9 +162,9 @@ async def execute_run(db: Session, run: WorkflowRun, workflow: Workflow, approve
                 output = await action(db, kind, config, context, workflow.owner_id)
                 output = {"provider_result": output}
             elif kind == "data.transform":
-                output = {"transformed": context}
+                output = {"transformed": dict(context)}
             elif kind == "output.result":
-                output = {"result": context}
+                output = {"result": dict(context)}
             elif kind == "utility.noop":
                 output = {"message": "Bloc de démonstration sans effet externe."}
             else:
