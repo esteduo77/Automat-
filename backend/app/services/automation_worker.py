@@ -3,7 +3,7 @@ import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
 from uuid import uuid4
-from sqlalchemy import select
+from sqlalchemy import select, update
 from backend.app.database import SessionLocal
 from backend.app.config import get_settings
 from backend.app.models import Workflow, WorkflowRun, WorkflowSchedule
@@ -14,14 +14,21 @@ logger = logging.getLogger(__name__)
 async def _execute_queued(run_id: str) -> None:
     db = SessionLocal()
     try:
+        # Atomic compare-and-set prevents two worker processes claiming the same run.
+        claimed = db.execute(update(WorkflowRun).where(
+            WorkflowRun.id == run_id, WorkflowRun.status == "queued"
+        ).values(status="running"))
+        if claimed.rowcount != 1:
+            db.rollback()
+            return
+        db.commit()
         run = db.get(WorkflowRun, run_id)
-        if not run or run.status != "queued":
+        if not run:
             return
         workflow = db.get(Workflow, run.workflow_id)
         if not workflow:
             run.status = "failed"; run.output_data = {"error": "Workflow not found"}
             run.finished_at = datetime.now(timezone.utc); db.commit(); return
-        run.status = "running"; db.commit()
         await execute_run(db, run, workflow)
     except Exception:
         logger.exception("Background workflow run failed: %s", run_id)
