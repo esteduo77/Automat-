@@ -103,8 +103,6 @@ def decide_approval(approval_id: str, payload: ApprovalDecision, user: User = De
     if payload.decision == "reject":
         run.status = "rejected"; run.finished_at = datetime.now(timezone.utc); db.commit()
         return serialize_run(run)
-    step = db.scalar(select(NodeRun).where(NodeRun.run_id == run.id, NodeRun.node_id == approval.node_id, NodeRun.status == "waiting_approval"))
-    if step:
-        step.status = "completed"; step.output_data = {"approved": True}; step.finished_at = datetime.now(timezone.utc)
+    # Keep the paused node pending: the worker re-runs it and checks the approved record.
     run.status = "queued"; db.commit()
     return serialize_run(run)
