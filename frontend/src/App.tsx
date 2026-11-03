@@ -131,6 +131,7 @@ export default function App() {
   const [savedWorkflows, setSavedWorkflows] = useState<Array<{id:string;name:string}>>([]);
   const [runStatus, setRunStatus] = useState<string | null>(null);
   const [pendingApprovalId, setPendingApprovalId] = useState<string | null>(null);
+  const [pendingApprovalSummary, setPendingApprovalSummary] = useState("");
   const [history, setHistory] = useState<Array<{id:string;status:string;started_at:string}>>([]);
   const [showHistory, setShowHistory] = useState(false);
   const [integrations, setIntegrations] = useState<Record<string, {configured:boolean;connected:boolean;account:string|null}>>({});
@@ -235,9 +236,10 @@ export default function App() {
         if (!response.ok) return;
         const result = await response.json();
         setRunStatus(result.status);
-        const approval = result.approvals?.find((item: {status:string;id:string}) => item.status === "pending");
+        const approval = result.approvals?.find((item: {status:string;id:string;summary?:string}) => item.status === "pending");
         if (approval) {
           setPendingApprovalId(approval.id);
+          setPendingApprovalSummary(approval.summary ?? "Action externe en attente de validation.");
           setNotice("Une approbation humaine est nécessaire avant de poursuivre.");
           loadHistory();
           return;
@@ -282,7 +284,7 @@ export default function App() {
     if (!pendingApprovalId) return;
     const response = await apiFetch("http://localhost:8000/api/workflows/approvals/" + pendingApprovalId + "/decision", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }) });
     const result = await response.json(); if (!response.ok) { setNotice(String(result.detail ?? "Décision refusée")); return; }
-    setRunStatus(result.status); setPendingApprovalId(null); setNotice("Décision enregistrée : " + result.status); loadHistory(); if (decision === "approve") void pollRun(result.id);
+    setRunStatus(result.status); setPendingApprovalId(null); setPendingApprovalSummary(""); setNotice("Décision enregistrée : " + result.status); loadHistory(); if (decision === "approve") void pollRun(result.id);
   };
 
   const createWebhook = async () => {
@@ -390,7 +392,7 @@ export default function App() {
               <MiniMap pannable zoomable nodeColor="#82d9b8" maskColor="rgba(7, 14, 25, 0.68)" />
             </ReactFlow>
           </div>
-          {webhookInfo && <div className="history-panel"><strong>Endpoint webhook</strong><p>{webhookInfo.path}</p><p>Secret à conserver : {webhookInfo.secret}</p></div>}<div className="canvas-footer"><span>{nodes.length} blocs</span><span>{edges.length} connexions</span><button className="history-toggle" onClick={() => { setShowHistory(!showHistory); loadHistory(); }}>Historique</button>{pendingApprovalId && <><button className="history-toggle" onClick={() => decideApproval("approve")}>Approuver</button><button className="history-toggle" onClick={() => decideApproval("reject")}>Refuser</button></>}<span className="notice">{notice}</span></div><div className="run-input"><label>Entrées de test (JSON)<input value={runInput} onChange={(event) => setRunInput(event.target.value)} /></label>{runStatus && <span>Dernière exécution : {runStatus}</span>}</div>{showHistory && <div className="history-panel"><strong>Historique des exécutions</strong>{history.length ? history.slice(0,6).map((item) => <div key={item.id}>{item.id.slice(0,8)} · {item.status} · {new Date(item.started_at).toLocaleString()}</div>) : <p>Aucune exécution enregistrée.</p>}</div>
+          {webhookInfo && <div className="history-panel"><strong>Endpoint webhook</strong><p>{webhookInfo.path}</p><p>Secret à conserver : {webhookInfo.secret}</p></div>}<div className="canvas-footer"><span>{nodes.length} blocs</span><span>{edges.length} connexions</span><button className="history-toggle" onClick={() => { setShowHistory(!showHistory); loadHistory(); }}>Historique</button>{pendingApprovalId && <><span className="notice">{pendingApprovalSummary}</span><button className="history-toggle" onClick={() => decideApproval("approve")}>Approuver</button><button className="history-toggle" onClick={() => decideApproval("reject")}>Refuser</button></>}<span className="notice">{notice}</span></div><div className="run-input"><label>Entrées de test (JSON)<input value={runInput} onChange={(event) => setRunInput(event.target.value)} /></label>{runStatus && <span>Dernière exécution : {runStatus}</span>}</div>{showHistory && <div className="history-panel"><strong>Historique des exécutions</strong>{history.length ? history.slice(0,6).map((item) => <div key={item.id}>{item.id.slice(0,8)} · {item.status} · {new Date(item.started_at).toLocaleString()}</div>) : <p>Aucune exécution enregistrée.</p>}</div>
         </section>
 
         <aside className="inspector-panel">
