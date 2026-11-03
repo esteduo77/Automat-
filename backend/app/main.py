@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
+from cryptography.fernet import Fernet
 from backend.app.config import get_settings
 from backend.app.database import Base, engine
 from backend.app import models
@@ -16,6 +18,7 @@ settings = get_settings()
 app = FastAPI(title=settings.app_name, version="0.4.0",
     description="A secure, extensible automation hub.")
 app.middleware("http")(security_middleware)
+app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.allowed_hosts)
 app.add_middleware(CORSMiddleware, allow_origins=settings.allowed_origins,
     allow_credentials=True, allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Automation-Signature"])
@@ -31,6 +34,14 @@ def create_tables():
             raise RuntimeError("SQLite is for local development; configure PostgreSQL in production.")
         if "*" in settings.allowed_origins:
             raise RuntimeError("Wildcard CORS origins are forbidden in production.")
+        if not settings.allowed_origins or any(not origin.startswith("https://") for origin in settings.allowed_origins):
+            raise RuntimeError("Production CORS origins must be explicit HTTPS origins.")
+        if not settings.public_base_url.startswith("https://"):
+            raise RuntimeError("Production requires PUBLIC_BASE_URL to be an HTTPS origin.")
+        try:
+            Fernet(settings.oauth_encryption_key.encode())
+        except Exception as exc:
+            raise RuntimeError("OAUTH_ENCRYPTION_KEY must be a valid Fernet key.") from exc
     Base.metadata.create_all(bind=engine)
 
 app.include_router(health_router, prefix="/api")
