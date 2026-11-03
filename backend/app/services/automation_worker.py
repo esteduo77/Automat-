@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import uuid4
 from sqlalchemy import select
 from backend.app.database import SessionLocal
+from backend.app.config import get_settings
 from backend.app.models import Workflow, WorkflowRun, WorkflowSchedule
 from backend.app.services.workflow_engine import execute_run, validate_graph
 
@@ -66,6 +67,6 @@ async def worker_loop(stop: asyncio.Event) -> None:
         for run_id in run_ids:
             await _execute_queued(run_id)
         try:
-            await asyncio.wait_for(stop.wait(), timeout=2)
+            await asyncio.wait_for(stop.wait(), timeout=max(0.5, get_settings().worker_poll_seconds))
         except asyncio.TimeoutError:
             pass
