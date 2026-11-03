@@ -70,7 +70,7 @@ const initialEdges: Edge[] = [
 ];
 
 const catalog = [
-  { category: "Déclencheurs", icon: "◷", blocks: [{ label: "Déclencheur manuel", description: "Lancer à la demande." }, { label: "Déclencheur planifié", description: "Démarrer selon un horaire." }] },
+  { category: "Déclencheurs", icon: "◷", blocks: [{ label: "Déclencheur manuel", description: "Lancer à la demande." }, { label: "Déclencheur planifié", description: "Démarrer selon un horaire." }, { label: "Déclencheur webhook", description: "Démarrer à la réception d’un événement signé." }] },
   { category: "IA", icon: "✦", blocks: [{ label: "Analyser avec l'IA", description: "Analyser un texte ou un contenu." }, { label: "Résumer un contenu", description: "Créer un résumé structuré." }, { label: "Classer un contenu", description: "Attribuer une catégorie." }] },
   { category: "Conditions", icon: "⑂", blocks: [{ label: "Condition si / sinon", description: "Diriger le workflow selon un test." }] },
   { category: "Validation", icon: "✓", blocks: [{ label: "Validation humaine", description: "Demander une approbation explicite." }] },
@@ -141,6 +141,7 @@ export default function App() {
   const [authPassword, setAuthPassword] = useState("");
   const [authMode, setAuthMode] = useState<"login" | "register">("login");
   const [authError, setAuthError] = useState("");
+  const [webhookInfo, setWebhookInfo] = useState<{path:string;secret:string}|null>(null);
 
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
 
@@ -260,6 +261,17 @@ export default function App() {
     setRunStatus(result.status); setPendingApprovalId(null); setNotice("Décision enregistrée : " + result.status); loadHistory();
   };
 
+  const createWebhook = async () => {
+    if (!workflowId) { setNotice("Enregistrez le workflow avant de créer son webhook."); return; }
+    try {
+      const response = await apiFetch("http://localhost:8000/api/webhooks/workflows/" + workflowId + "/endpoint", { method: "POST" });
+      const result = await response.json();
+      if (!response.ok) throw new Error(String(result.detail ?? "Création du webhook impossible."));
+      setWebhookInfo({ path: result.path, secret: result.secret });
+      setNotice("Webhook créé. Copiez son secret maintenant : il ne sera plus affiché.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Erreur webhook."); }
+  };
+
   const startOAuth = async (provider: "google" | "microsoft") => {
     try {
       const response = await apiFetch("http://localhost:8000/api/integrations/" + provider + "/connect");
@@ -308,9 +320,11 @@ export default function App() {
         </div>
         <span className="draft-status"><i /> Brouillon</span>
         <span className="draft-status">{apiStatus}</span>
+        <button className="button button-quiet" onClick={() => { window.localStorage.removeItem("automation-hub-token"); setAuthToken(null); }}>Déconnexion</button>
         <button className="button button-quiet" onClick={validateWorkflow}>Valider</button>
         <button className="button button-quiet" onClick={runWorkflow}>Exécuter</button>
         {scheduleId ? <button className="button button-quiet" onClick={pauseSchedule}>Pause planification</button> : <button className="button button-quiet" onClick={scheduleWorkflow}>Planifier · 5 min</button>}
+        <button className="button button-quiet" onClick={createWebhook}>Créer webhook</button>
         <button className="button button-primary" onClick={saveDraft}>Enregistrer</button>
       </header>
 
@@ -339,7 +353,7 @@ export default function App() {
             <h3>Connexions de comptes</h3>
             <button className="connect-link" onClick={() => startOAuth("google")}>{integrations.google?.connected ? "Google connecté · " + integrations.google.account : "Connecter Google"}</button>
             <button className="connect-link" onClick={() => startOAuth("microsoft")}>{integrations.microsoft?.connected ? "Microsoft connecté · " + integrations.microsoft.account : "Connecter Microsoft"}</button>
-            <small>Connecteurs de recherche en lecture seule. Configurez les autorisations OAuth côté serveur.</small>
+            <small>Recherche et actions d’écriture approuvées. Configurez les permissions OAuth côté serveur.</small>
           </section>
         </aside>
 
@@ -352,7 +366,7 @@ export default function App() {
               <MiniMap pannable zoomable nodeColor="#82d9b8" maskColor="rgba(7, 14, 25, 0.68)" />
             </ReactFlow>
           </div>
-          <div className="canvas-footer"><span>{nodes.length} blocs</span><span>{edges.length} connexions</span><button className="history-toggle" onClick={() => { setShowHistory(!showHistory); loadHistory(); }}>Historique</button>{pendingApprovalId && <><button className="history-toggle" onClick={() => decideApproval("approve")}>Approuver</button><button className="history-toggle" onClick={() => decideApproval("reject")}>Refuser</button></>}<span className="notice">{notice}</span></div><div className="run-input"><label>Entrées de test (JSON)<input value={runInput} onChange={(event) => setRunInput(event.target.value)} /></label>{runStatus && <span>Dernière exécution : {runStatus}</span>}</div>{showHistory && <div className="history-panel"><strong>Historique des exécutions</strong>{history.length ? history.slice(0,6).map((item) => <div key={item.id}>{item.id.slice(0,8)} · {item.status} · {new Date(item.started_at).toLocaleString()}</div>) : <p>Aucune exécution enregistrée.</p>}</div>
+          {webhookInfo && <div className="history-panel"><strong>Endpoint webhook</strong><p>{webhookInfo.path}</p><p>Secret à conserver : {webhookInfo.secret}</p></div>}<div className="canvas-footer"><span>{nodes.length} blocs</span><span>{edges.length} connexions</span><button className="history-toggle" onClick={() => { setShowHistory(!showHistory); loadHistory(); }}>Historique</button>{pendingApprovalId && <><button className="history-toggle" onClick={() => decideApproval("approve")}>Approuver</button><button className="history-toggle" onClick={() => decideApproval("reject")}>Refuser</button></>}<span className="notice">{notice}</span></div><div className="run-input"><label>Entrées de test (JSON)<input value={runInput} onChange={(event) => setRunInput(event.target.value)} /></label>{runStatus && <span>Dernière exécution : {runStatus}</span>}</div>{showHistory && <div className="history-panel"><strong>Historique des exécutions</strong>{history.length ? history.slice(0,6).map((item) => <div key={item.id}>{item.id.slice(0,8)} · {item.status} · {new Date(item.started_at).toLocaleString()}</div>) : <p>Aucune exécution enregistrée.</p>}</div>
         </section>
 
         <aside className="inspector-panel">
