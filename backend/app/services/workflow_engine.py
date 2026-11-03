@@ -2,6 +2,7 @@ import json
 from datetime import datetime, timezone
 from uuid import uuid4
 from sqlalchemy.orm import Session
+from sqlalchemy import select
 from backend.app.models import Approval, NodeRun, Workflow, WorkflowRun
 
 def utcnow():
@@ -24,8 +25,14 @@ def block_kind(data: dict) -> str:
     if category == "fichiers & données":
         return "data.transform"
     if category == "google":
+        if "envoyer" in label: return "google.gmail.send"
+        if "créer" in label: return "google.drive.create"
+        if "modifier" in label: return "google.drive.update"
         return "google.gmail.search" if "e-mail" in label or "email" in label else "google.drive.search"
     if category == "microsoft":
+        if "envoyer" in label: return "microsoft.mail.send"
+        if "créer" in label: return "microsoft.drive.create"
+        if "modifier" in label: return "microsoft.drive.update"
         return "microsoft.mail.search" if "message" in label or "e-mail" in label else "microsoft.drive.search"
     if category == "sorties":
         return "output.result"
@@ -130,9 +137,18 @@ async def execute_run(db: Session, run: WorkflowRun, workflow: Workflow, approve
                 source = str(config.get("text") or context.get("text") or json.dumps(context, ensure_ascii=False))
                 output = {"text": await _ai_call(source, prompt)}
             elif kind.startswith("google.") or kind.startswith("microsoft."):
+                is_write = kind.endswith(".send") or kind.endswith(".create") or kind.endswith(".update")
+                if is_write:
+                    approved = db.scalar(select(Approval).where(Approval.run_id == run.id,
+                        Approval.node_id == node_id, Approval.status == "approved"))
+                    if not approved:
+                        step.status = "waiting_approval"
+                        db.add(Approval(id=str(uuid4()), run_id=run.id, node_id=node_id,
+                            summary=f"Autoriser l’action externe « {data.get('label', kind)} » ?"))
+                        run.status = "waiting_approval"; db.commit(); return run
                 from backend.app.integrations.provider_clients import google_action, microsoft_action
                 action = google_action if kind.startswith("google.") else microsoft_action
-                output = await action(db, kind, config, context)
+                output = await action(db, kind, config, context, workflow.owner_id)
                 output = {"provider_result": output}
             elif kind == "data.transform":
                 output = {"transformed": context}
