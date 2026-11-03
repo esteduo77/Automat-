@@ -6,26 +6,26 @@ from sqlalchemy.orm import Session
 from backend.app.database import get_db
 from backend.app.models import Approval, NodeRun, Workflow, WorkflowRun
 from backend.app.schemas import ApprovalDecision, RunRequest, WorkflowGraph
-from backend.app.services.workflow_engine import execute_run, validate_graph
+from backend.app.services.workflow_engine import validate_graph
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
 
 def serialize_workflow(item: Workflow) -> dict:
-    return {"id": item.id, "name": item.name, "status": item.status, "version": item.version, "graph": item.graph, "created_at": item.created_at, "updated_at": item.updated_at}
+    return {"id": item.id, "name": item.name, "status": item.status, "version": item.version,
+        "graph": item.graph, "created_at": item.created_at, "updated_at": item.updated_at}
 
 def serialize_run(run: WorkflowRun) -> dict:
-    return {
-        "id": run.id, "workflow_id": run.workflow_id, "workflow_version": run.workflow_version,
+    return {"id": run.id, "workflow_id": run.workflow_id, "workflow_version": run.workflow_version,
         "status": run.status, "input": run.input_data, "output": run.output_data,
         "started_at": run.started_at, "finished_at": run.finished_at,
-        "steps": [{"id": s.id, "node_id": s.node_id, "type": s.node_type, "status": s.status, "output": s.output_data, "error": s.error, "started_at": s.started_at, "finished_at": s.finished_at} for s in run.steps],
-        "approvals": [{"id": a.id, "node_id": a.node_id, "status": a.status, "summary": a.summary, "comment": a.decision_comment} for a in run.approvals],
-    }
+        "steps": [{"id": s.id, "node_id": s.node_id, "type": s.node_type, "status": s.status,
+            "output": s.output_data, "error": s.error, "started_at": s.started_at, "finished_at": s.finished_at} for s in run.steps],
+        "approvals": [{"id": a.id, "node_id": a.node_id, "status": a.status, "summary": a.summary,
+            "comment": a.decision_comment} for a in run.approvals]}
 
 @router.post("", status_code=201)
 def create_workflow(payload: WorkflowGraph, db: Session = Depends(get_db)):
-    graph = payload.model_dump()
-    errors = validate_graph(graph)
+    graph = payload.model_dump(); errors = validate_graph(graph)
     if errors: raise HTTPException(422, detail=errors)
     item = Workflow(id=str(uuid4()), name=payload.name, graph=graph)
     db.add(item); db.commit(); db.refresh(item)
@@ -45,8 +45,7 @@ def get_workflow(workflow_id: str, db: Session = Depends(get_db)):
 def update_workflow(workflow_id: str, payload: WorkflowGraph, db: Session = Depends(get_db)):
     item = db.get(Workflow, workflow_id)
     if not item: raise HTTPException(404, "Workflow introuvable.")
-    graph = payload.model_dump()
-    errors = validate_graph(graph)
+    graph = payload.model_dump(); errors = validate_graph(graph)
     if errors: raise HTTPException(422, detail=errors)
     item.name = payload.name; item.graph = graph; item.version += 1; item.status = "draft"
     db.commit(); db.refresh(item)
@@ -68,16 +67,15 @@ def activate_workflow(workflow_id: str, db: Session = Depends(get_db)):
     item.status = "active"; db.commit()
     return serialize_workflow(item)
 
-@router.post("/{workflow_id}/runs", status_code=201)
-async def run_workflow(workflow_id: str, payload: RunRequest, db: Session = Depends(get_db)):
+@router.post("/{workflow_id}/runs", status_code=202)
+def run_workflow(workflow_id: str, payload: RunRequest, db: Session = Depends(get_db)):
     item = db.get(Workflow, workflow_id)
     if not item: raise HTTPException(404, "Workflow introuvable.")
     errors = validate_graph(item.graph)
     if errors: raise HTTPException(422, detail=errors)
-    run = WorkflowRun(id=str(uuid4()), workflow_id=item.id, workflow_version=item.version, status="running", input_data=payload.input, graph_snapshot=item.graph)
+    run = WorkflowRun(id=str(uuid4()), workflow_id=item.id, workflow_version=item.version,
+        status="queued", input_data=payload.input, graph_snapshot=item.graph)
     db.add(run); db.commit(); db.refresh(run)
-    await execute_run(db, run, item)
-    db.refresh(run)
     return serialize_run(run)
 
 @router.get("/runs/{run_id}")
@@ -89,26 +87,24 @@ def get_run(run_id: str, db: Session = Depends(get_db)):
 @router.get("/{workflow_id}/runs")
 def list_runs(workflow_id: str, db: Session = Depends(get_db)):
     if not db.get(Workflow, workflow_id): raise HTTPException(404, "Workflow introuvable.")
-    runs = db.scalars(select(WorkflowRun).where(WorkflowRun.workflow_id == workflow_id).order_by(WorkflowRun.started_at.desc())).all()
+    runs = db.scalars(select(WorkflowRun).where(WorkflowRun.workflow_id == workflow_id)
+        .order_by(WorkflowRun.started_at.desc())).all()
     return [serialize_run(run) for run in runs]
 
 @router.post("/approvals/{approval_id}/decision")
-async def decide_approval(approval_id: str, payload: ApprovalDecision, db: Session = Depends(get_db)):
+def decide_approval(approval_id: str, payload: ApprovalDecision, db: Session = Depends(get_db)):
     approval = db.get(Approval, approval_id)
     if not approval: raise HTTPException(404, "Approbation introuvable.")
     if approval.status != "pending": raise HTTPException(409, "Cette approbation a déjà été traitée.")
     approval.status = "approved" if payload.decision == "approve" else "rejected"
-    approval.decision_comment = payload.comment
-    approval.decided_at = datetime.now(timezone.utc)
+    approval.decision_comment = payload.comment; approval.decided_at = datetime.now(timezone.utc)
     run = db.get(WorkflowRun, approval.run_id)
     if payload.decision == "reject":
         run.status = "rejected"; run.finished_at = datetime.now(timezone.utc); db.commit()
         return serialize_run(run)
-    step = db.scalar(select(NodeRun).where(NodeRun.run_id == run.id, NodeRun.node_id == approval.node_id, NodeRun.status == "waiting_approval"))
+    step = db.scalar(select(NodeRun).where(NodeRun.run_id == run.id, NodeRun.node_id == approval.node_id,
+        NodeRun.status == "waiting_approval"))
     if step:
         step.status = "completed"; step.output_data = {"approved": True}; step.finished_at = datetime.now(timezone.utc)
-    run.status = "running"; db.commit()
-    workflow = db.get(Workflow, run.workflow_id)
-    await execute_run(db, run, workflow, approved_node_ids={approval.node_id})
-    db.refresh(run)
+    run.status = "queued"; db.commit()
     return serialize_run(run)
