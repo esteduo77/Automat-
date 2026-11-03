@@ -75,8 +75,8 @@ const catalog = [
   { category: "Conditions", icon: "⑂", blocks: [{ label: "Condition si / sinon", description: "Diriger le workflow selon un test." }] },
   { category: "Validation", icon: "✓", blocks: [{ label: "Validation humaine", description: "Demander une approbation explicite." }] },
   { category: "Fichiers & données", icon: "▤", blocks: [{ label: "Transformer des données", description: "Nettoyer ou convertir des champs." }] },
-  { category: "Google", icon: "G", blocks: [{ label: "Rechercher un e-mail", description: "Disponible après connexion Google." }] },
-  { category: "Microsoft", icon: "▦", blocks: [{ label: "Rechercher un message", description: "Disponible après connexion Microsoft." }] },
+  { category: "Google", icon: "G", blocks: [{ label: "Rechercher un e-mail", description: "Rechercher des messages Gmail." }, { label: "Rechercher un fichier", description: "Rechercher des fichiers Google Drive." }] },
+  { category: "Microsoft", icon: "▦", blocks: [{ label: "Rechercher un message", description: "Rechercher des messages Outlook." }, { label: "Rechercher un fichier", description: "Rechercher des fichiers OneDrive." }] },
   { category: "Sorties", icon: "↗", blocks: [{ label: "Afficher un résultat", description: "Terminer avec un résultat visible." }] },
 ];
 
@@ -128,6 +128,7 @@ export default function App() {
   const [showHistory, setShowHistory] = useState(false);
   const [integrations, setIntegrations] = useState<Record<string, {configured:boolean;connected:boolean;account:string|null}>>({});
   const [runInput, setRunInput] = useState("{\"score\":10,\"text\":\"Exemple de contenu\"}");
+  const [scheduleId, setScheduleId] = useState<string | null>(null);
 
   const selectedNode = nodes.find((node) => node.id === selectedId) ?? null;
 
@@ -155,7 +156,7 @@ export default function App() {
       id,
       type: "hub",
       position: { x: 180 + (nodes.length % 3) * 80, y: 100 + nodes.length * 34 },
-      data: { category, label, description, policy: category === "Validation" ? "always" : category === "IA" ? "on_risk" : "never", config: category === "Conditions" ? { field: "score", operator: "equals", value: 10 } : {} },
+      data: { category, label, description, policy: category === "Validation" ? "always" : category === "IA" ? "on_risk" : "never", config: category === "Conditions" ? { field: "score", operator: "equals", value: 10 } : (category === "Google" || category === "Microsoft") ? { query: "", limit: 10 } : {} },
     };
     setNodes((current) => [...current, node]);
     setSelectedId(id);
@@ -224,6 +225,21 @@ export default function App() {
     } catch (error) { setNotice(error instanceof Error ? error.message : "Erreur d’exécution"); }
   };
 
+  const scheduleWorkflow = async () => {
+    if (!workflowId) { setNotice("Enregistrez d’abord le workflow avant de le planifier."); return; }
+    try {
+      const response = await fetch("http://localhost:8000/api/automations/workflows/" + workflowId + "/schedule", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ interval_seconds: 300 }) });
+      const result = await response.json(); if (!response.ok) throw new Error(String(result.detail ?? "Planification impossible"));
+      setScheduleId(result.id); setNotice("Déclencheur actif : exécution toutes les 5 minutes.");
+    } catch (error) { setNotice(error instanceof Error ? error.message : "Erreur de planification"); }
+  };
+
+  const pauseSchedule = async () => {
+    if (!scheduleId) return;
+    try { const response = await fetch("http://localhost:8000/api/automations/" + scheduleId + "/pause", { method: "POST" }); if (!response.ok) throw new Error("Pause impossible."); setScheduleId(null); setNotice("Déclencheur mis en pause."); }
+    catch (error) { setNotice(error instanceof Error ? error.message : "Erreur"); }
+  };
+
   const decideApproval = async (decision: "approve" | "reject") => {
     if (!pendingApprovalId) return;
     const response = await fetch("http://localhost:8000/api/workflows/approvals/" + pendingApprovalId + "/decision", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ decision }) });
@@ -243,6 +259,7 @@ export default function App() {
         <span className="draft-status">{apiStatus}</span>
         <button className="button button-quiet" onClick={validateWorkflow}>Valider</button>
         <button className="button button-quiet" onClick={runWorkflow}>Exécuter</button>
+        {scheduleId ? <button className="button button-quiet" onClick={pauseSchedule}>Pause planification</button> : <button className="button button-quiet" onClick={scheduleWorkflow}>Planifier · 5 min</button>}
         <button className="button button-primary" onClick={saveDraft}>Enregistrer</button>
       </header>
 
@@ -258,7 +275,7 @@ export default function App() {
               <section className="block-group" key={group.category}>
                 <h3><span>{group.icon}</span>{group.category}</h3>
                 {group.blocks.map((block) => {
-                  const unavailable = group.category === "Google" || group.category === "Microsoft" || block.label === "Déclencheur planifié";
+                  const unavailable = block.label === "Déclencheur planifié";
                   return <button key={block.label} className="library-block" disabled={unavailable} onClick={() => addBlock(group.category, block.label, block.description)}>
                     <span className="add-symbol">+</span><span><strong>{block.label}</strong><small>{unavailable ? "Bientôt disponible" : block.description}</small></span>
                   </button>;
@@ -271,7 +288,7 @@ export default function App() {
             <h3>Connexions de comptes</h3>
             <a className="connect-link" href="http://localhost:8000/api/integrations/google/connect">{integrations.google?.connected ? "Google connecté · " + integrations.google.account : "Connecter Google"}</a>
             <a className="connect-link" href="http://localhost:8000/api/integrations/microsoft/connect">{integrations.microsoft?.connected ? "Microsoft connecté · " + integrations.microsoft.account : "Connecter Microsoft"}</a>
-            <small>OAuth en lecture seule. Les blocs d’action fournisseur arrivent ensuite.</small>
+            <small>Connecteurs de recherche en lecture seule. Configurez les autorisations OAuth côté serveur.</small>
           </section>
         </aside>
 
@@ -294,6 +311,7 @@ export default function App() {
             <label className="field-label">Nom du bloc<input value={selectedNode.data.label} onChange={(event) => updateSelected({ label: event.target.value })} /></label>
             <label className="field-label">Description<textarea rows={3} value={selectedNode.data.description} onChange={(event) => updateSelected({ description: event.target.value })} /></label>
             {selectedNode.data.category === "Conditions" && <div className="policy-section"><span className="eyebrow">BRANCHEMENT IF / ELSE</span><label className="field-label">Champ d'entrée<input value={String(selectedNode.data.config?.field ?? "score")} onChange={(event) => updateSelected({ config: { ...selectedNode.data.config, field: event.target.value } })} /></label><label className="field-label">Opérateur<select value={String(selectedNode.data.config?.operator ?? "equals")} onChange={(event) => updateSelected({ config: { ...selectedNode.data.config, operator: event.target.value } })}><option value="equals">Égal à</option><option value="not_equals">Différent de</option><option value="contains">Contient</option><option value="is_true">Est vrai</option><option value="is_false">Est faux</option></select></label><label className="field-label">Valeur<input value={String(selectedNode.data.config?.value ?? "")} onChange={(event) => updateSelected({ config: { ...selectedNode.data.config, value: event.target.value } })} /></label><p>Sortie verte : vrai. Sortie orange : faux.</p></div>}
+            {(selectedNode.data.category === "Google" || selectedNode.data.category === "Microsoft") && <div className="policy-section"><span className="eyebrow">PARAMÈTRES DU CONNECTEUR</span><label className="field-label">Requête<input value={String(selectedNode.data.config?.query ?? "")} placeholder="Ex. facture" onChange={(event) => updateSelected({ config: { ...selectedNode.data.config, query: event.target.value } })} /></label><label className="field-label">Nombre de résultats<input type="number" min="1" max="50" value={Number(selectedNode.data.config?.limit ?? 10)} onChange={(event) => updateSelected({ config: { ...selectedNode.data.config, limit: Number(event.target.value) } })} /></label><p>Consultation en lecture seule selon les permissions du compte connecté.</p></div>}
             {selectedNode.data.category === "IA" && <div className="policy-section"><span className="eyebrow">PARAMÈTRES IA</span><label className="field-label">Instruction<input value={String(selectedNode.data.config?.prompt ?? "")} placeholder="Résume le contenu en 3 points…" onChange={(event) => updateSelected({ config: { ...selectedNode.data.config, prompt: event.target.value } })} /></label><label className="field-label">Texte (facultatif)<textarea rows={3} value={String(selectedNode.data.config?.text ?? "")} onChange={(event) => updateSelected({ config: { ...selectedNode.data.config, text: event.target.value } })} /></label></div>}
             <div className="policy-section"><span className="eyebrow">EXÉCUTION</span><h3>Validation humaine</h3><p>Choisissez quand ce bloc doit attendre une approbation.</p>
               <label className="field-label">Politique<select value={selectedNode.data.policy} onChange={(event) => updateSelected({ policy: event.target.value as Policy })}>
