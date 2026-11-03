@@ -14,7 +14,7 @@ Automation Hub is a visual workflow automation application built with React, Typ
 - Separate database-backed worker for queued runs and interval schedules.
 - Execution history and approval decisions.
 
-Native Gmail Watch/Pub/Sub, Google Drive change notifications and Microsoft Graph subscription provisioning/renewal are not included yet. The webhook trigger is a generic signed ingress endpoint, not a native provider subscription.
+Native Gmail Watch/Pub/Sub, Google Drive change channels and Microsoft Graph subscriptions are supported through the provider-events API. The worker renews subscriptions before expiry. The generic signed webhook remains available separately.
 
 ## Run locally
 
@@ -67,6 +67,30 @@ docker compose up --build
 Open http://localhost:8080. The API is also exposed at http://localhost:8000 and docs at http://localhost:8000/docs. Compose runs the API, a separate worker and the built frontend; SQLite data is persisted in the `automation_hub_data` volume. To stop: `docker compose down`. To also erase the local database: `docker compose down -v`.
 
 For Google/Microsoft OAuth with Compose, use the callback URLs above and set `FRONTEND_BASE_URL=http://localhost:8080`.
+
+## Native provider event subscriptions
+
+Set `PUBLIC_BASE_URL` to the externally reachable HTTPS origin. For Gmail, configure a Google Cloud Pub/Sub topic, grant Gmail permission to publish to it, and configure a push subscription targeting `/api/provider-events/google/gmail` with OIDC authentication. Set `GOOGLE_PUBSUB_AUDIENCE` to that exact callback URL and `GOOGLE_PUBSUB_SERVICE_ACCOUNT` to the push service-account email. The endpoint verifies the Google-signed OIDC token.
+
+For Microsoft Graph, register `PUBLIC_BASE_URL/api/provider-events/microsoft` as the notification URL. The app handles Graph's validation handshake and verifies each notification's `clientState`. For Google Drive, the app creates and renews change channels using `/api/provider-events/google/drive`.
+
+Create a subscription while authenticated:
+
+```http
+POST /api/provider-events/subscriptions
+Content-Type: application/json
+Authorization: Bearer <access-token>
+
+{"workflow_id":"<workflow-id>","provider":"google_gmail"}
+```
+
+Use `google_drive` for Drive changes, or `microsoft` with resource `me/messages` or `me/drive/root`. The workflow must be active and contain a webhook-compatible trigger block. Notifications enqueue workflow runs; Gmail/Drive notifications carry change cursors/metadata, and downstream blocks should fetch the corresponding current data. Provider subscription creation requires real OAuth connections and public HTTPS callback URLs. Reconnect provider accounts if permissions need updating.
+
+## Worker recovery
+
+Queued runs use database leases, heartbeat renewal, bounded retries and exponential backoff. A run interrupted while a node was actively executing is marked failed for review instead of being replayed automatically: an external write may have succeeded immediately before the crash, so blind replay could duplicate an email or file. Runs interrupted between nodes can be re-queued from completed step records.
+
+For an existing database, back up first and apply migrations `0003_worker_leases.sql` and `0004_provider_subscriptions.sql` exactly once, in that order. Fresh databases create the current schema automatically.
 
 ## Tests and build
 
