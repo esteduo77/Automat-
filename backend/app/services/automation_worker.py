@@ -1,4 +1,4 @@
-"""Single-process database-backed worker and interval scheduler."""
+"""Independent database-backed worker and interval scheduler."""
 import asyncio
 import logging
 from datetime import datetime, timedelta, timezone
@@ -47,13 +47,20 @@ async def _enqueue_due_schedules() -> None:
             WorkflowSchedule.enabled.is_(True), WorkflowSchedule.next_run_at <= now
         ).limit(25)).all()
         for schedule in schedules:
+            next_time = now + timedelta(seconds=schedule.interval_seconds)
+            claimed = db.execute(update(WorkflowSchedule).where(
+                WorkflowSchedule.id == schedule.id,
+                WorkflowSchedule.enabled.is_(True),
+                WorkflowSchedule.next_run_at <= now
+            ).values(next_run_at=next_time))
+            if claimed.rowcount != 1:
+                continue
             workflow = db.get(Workflow, schedule.workflow_id)
             if workflow and workflow.status == "active" and not validate_graph(workflow.graph):
                 run = WorkflowRun(id=str(uuid4()), workflow_id=workflow.id, workflow_version=workflow.version,
                     status="queued", input_data={"trigger": "schedule", "scheduled_at": now.isoformat()},
                     graph_snapshot=workflow.graph)
                 db.add(run)
-            schedule.next_run_at = now + timedelta(seconds=schedule.interval_seconds)
         db.commit()
     except Exception:
         db.rollback(); logger.exception("Unable to enqueue scheduled workflows")
@@ -61,7 +68,7 @@ async def _enqueue_due_schedules() -> None:
         db.close()
 
 async def worker_loop(stop: asyncio.Event) -> None:
-    """Polls queued work. Run exactly one API worker until distributed locking is added."""
+    """Polls queued work; conditional updates make queue and schedule claims atomic."""
     while not stop.is_set():
         db = SessionLocal()
         try:
