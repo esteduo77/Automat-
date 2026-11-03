@@ -10,6 +10,7 @@ from backend.app.routers.automations import router as automations_router
 from backend.app.routers.auth import router as auth_router
 from backend.app.routers.webhooks import router as webhooks_router
 from backend.app.middleware import security_middleware
+from backend.app.routers.provider_events import router as provider_events_router
 
 settings = get_settings()
 app = FastAPI(title=settings.app_name, version="0.4.0",
@@ -38,6 +39,7 @@ app.include_router(workflows_router, prefix="/api")
 app.include_router(integrations_router, prefix="/api")
 app.include_router(automations_router, prefix="/api")
 app.include_router(webhooks_router, prefix="/api")
+app.include_router(provider_events_router, prefix="/api")
 
 @app.get("/", tags=["root"])
 async def root() -> dict[str, str]:
