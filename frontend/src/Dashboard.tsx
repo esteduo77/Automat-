@@ -43,7 +43,7 @@ export default function Dashboard() {
         </a>
         <div className="sidebar-label">ESPACE DE TRAVAIL</div>
         <a className="sidebar-link active" href="/"> <span>▦</span> Vue d’ensemble</a>
-        <a className="sidebar-link" href="/editor"><span>⌘</span> Éditeur de workflows</a>
+        <a className="sidebar-link" href="/#editor"><span>⌘</span> Éditeur de workflows</a>
         <a className="sidebar-link" href={API_BASE + "/docs"} target="_blank" rel="noreferrer"><span>⌁</span> Documentation API</a>
         <div className="sidebar-bottom">
           <div className="sidebar-label">ÉTAT DU SERVICE</div>
@@ -55,7 +55,7 @@ export default function Dashboard() {
       <section className="dashboard-main">
         <header className="dashboard-topbar">
           <div><span className="dashboard-kicker">TABLEAU DE BORD</span><strong>Vue d’ensemble</strong></div>
-          <a className="dashboard-avatar" href="/editor" aria-label="Ouvrir l’espace utilisateur">AH</a>
+          <a className="dashboard-avatar" href="/#editor" aria-label="Ouvrir l’espace utilisateur">AH</a>
         </header>
 
         <div className="dashboard-content">
@@ -64,7 +64,7 @@ export default function Dashboard() {
               <span className="welcome-tag">AUTOMATISEZ EN TOUTE SIMPLICITÉ</span>
               <h1>Bonjour et bienvenue sur <em>Automation Hub.</em></h1>
               <p>Créez des workflows, connectez vos outils et gardez le contrôle sur chaque automatisation.</p>
-              <a className="primary-cta" href="/editor">Ouvrir l’éditeur <span>→</span></a>
+              <a className="primary-cta" href="/#editor">Ouvrir l’éditeur <span>→</span></a>
             </div>
             <div className="welcome-art" aria-hidden="true">
               <div className="orbit orbit-one" /><div className="orbit orbit-two" />
@@ -82,8 +82,8 @@ export default function Dashboard() {
 
           <div className="section-heading"><div><span className="dashboard-kicker">POUR COMMENCER</span><h2>Votre espace de travail</h2></div></div>
           <section className="quick-actions">
-            <a className="action-card" href="/editor"><span className="action-symbol">＋</span><span><strong>Créer un workflow</strong><small>Assemblez des blocs et définissez vos automatisations.</small></span><b>→</b></a>
-            <a className="action-card" href="/editor"><span className="action-symbol">⌘</span><span><strong>Gérer mes workflows</strong><small>Retrouvez vos scénarios et modifiez leur logique.</small></span><b>→</b></a>
+            <a className="action-card" href="/#editor"><span className="action-symbol">＋</span><span><strong>Créer un workflow</strong><small>Assemblez des blocs et définissez vos automatisations.</small></span><b>→</b></a>
+            <a className="action-card" href="/#editor"><span className="action-symbol">⌘</span><span><strong>Gérer mes workflows</strong><small>Retrouvez vos scénarios et modifiez leur logique.</small></span><b>→</b></a>
             <a className="action-card" href={API_BASE + "/docs"} target="_blank" rel="noreferrer"><span className="action-symbol">⌁</span><span><strong>Explorer l’API</strong><small>Consultez les routes techniques du backend.</small></span><b>↗</b></a>
           </section>
 
