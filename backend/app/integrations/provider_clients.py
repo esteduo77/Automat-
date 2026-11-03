@@ -20,6 +20,8 @@ def _cipher():
     return Fernet(key.encode())
 
 async def _access_token(db: Session, provider: str, user_id: str) -> str:
+    if not user_id:
+        raise RuntimeError("A user-owned provider connection is required")
     connection = db.scalar(select(OAuthConnection).where(OAuthConnection.provider == provider, OAuthConnection.user_id == user_id))
     if not connection:
         raise RuntimeError(f"{provider} account is not connected")
