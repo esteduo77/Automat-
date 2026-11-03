@@ -104,7 +104,10 @@ async def execute_run(db: Session, run: WorkflowRun, workflow: Workflow, approve
     active_nodes = set()
     for node_id in order:
         node = node_map[node_id]; data = node.get("data", {}); kind = block_kind(data)
-        if kind.startswith("trigger."): active_nodes.add(node_id)
+        trigger_type = str((run.input_data or {}).get("_trigger_type", "manual"))
+        if kind == "trigger.manual" and trigger_type == "manual": active_nodes.add(node_id)
+        elif kind == "trigger.schedule" and trigger_type == "schedule": active_nodes.add(node_id)
+        elif kind == "trigger.webhook" and trigger_type == "webhook": active_nodes.add(node_id)
         if node_id not in active_nodes: continue
         if node_id in completed:
             prior = next((item for item in run.steps if item.node_id == node_id and item.status == "completed"), None)
