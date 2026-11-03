@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     oauth_redirect_base: str = "http://localhost:8000"
     frontend_base_url: str = "http://localhost:5173"
     worker_poll_seconds: float = 2.0
+    jwt_secret: str = "CHANGE-ME-IN-ENVIRONMENT-AT-LEAST-32-CHARS"
+    access_token_minutes: int = 60 * 12
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
