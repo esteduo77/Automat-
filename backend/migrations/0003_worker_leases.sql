@@ -9,3 +9,6 @@ ALTER TABLE workflow_runs ADD COLUMN last_error TEXT;
 CREATE INDEX IF NOT EXISTS ix_workflow_runs_worker_id ON workflow_runs(worker_id);
 CREATE INDEX IF NOT EXISTS ix_workflow_runs_lease_expires_at ON workflow_runs(lease_expires_at);
 CREATE INDEX IF NOT EXISTS ix_workflow_runs_available_at ON workflow_runs(available_at);
+
+-- Recover runs left in running state by the pre-lease worker.
+UPDATE workflow_runs SET lease_expires_at = CURRENT_TIMESTAMP WHERE status = 'running' AND lease_expires_at IS NULL;
