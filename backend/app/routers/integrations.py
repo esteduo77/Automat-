@@ -5,7 +5,6 @@ from uuid import uuid4
 import httpx
 from cryptography.fernet import Fernet
 from fastapi import APIRouter, Depends, HTTPException, Query
-from fastapi.responses import RedirectResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from backend.app.config import get_settings
@@ -45,7 +44,7 @@ def connect_provider(provider:str,user:User=Depends(get_current_user),db:Session
  redirect_uri=f"{settings.oauth_redirect_base.rstrip('/')}/api/integrations/{provider}/callback"
  params={"client_id":getattr(settings,cfg["client_id_attr"]),"redirect_uri":redirect_uri,"response_type":"code","scope":cfg["scope"],"state":state,"code_challenge":challenge,"code_challenge_method":"S256","prompt":"consent"}
  if provider=="google":params["access_type"]="offline"
- return RedirectResponse(f"{cfg['authorize']}?{urlencode(params)}")
+ return {"authorization_url": f"{cfg['authorize']}?{urlencode(params)}"}
 
 @router.get("/{provider}/callback")
 async def oauth_callback(provider:str,code:str=Query(...),state:str=Query(...),db:Session=Depends(get_db)):
