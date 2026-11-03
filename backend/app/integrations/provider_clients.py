@@ -1,3 +1,4 @@
+"""Small, server-side Google and Microsoft Graph clients for connected accounts."""
 import base64
 """Small, server-side Google and Microsoft Graph clients for connected accounts."""
 import json
@@ -33,7 +34,7 @@ async def _access_token(db: Session, provider: str, user_id: str) -> str:
         else:
             data = {"client_id": settings.microsoft_client_id, "client_secret": settings.microsoft_client_secret,
                     "refresh_token": tokens["refresh_token"], "grant_type": "refresh_token",
-                    "scope": "openid profile email offline_access User.Read Mail.ReadBasic Files.Read"}
+                    "scope": "openid profile email offline_access User.Read Mail.ReadBasic Mail.Send Files.ReadWrite"}
             endpoint = MS_TOKEN_URL
         async with httpx.AsyncClient(timeout=20) as client:
             response = await client.post(endpoint, data=data)
@@ -56,7 +57,10 @@ async def google_action(db: Session, action: str, config: dict, context: dict, u
         if action == "google.gmail.send":
             from email.message import EmailMessage
             message = EmailMessage()
-            message["To"] = str(config.get("to") or "")
+            recipient = str(config.get("to") or "")
+            if not recipient or "@" not in recipient:
+                raise ValueError("Adresse destinataire invalide.")
+            message["To"] = recipient
             message["Subject"] = str(config.get("subject") or "")[:250]
             message.set_content(str(config.get("body") or context.get("text") or "")[:100000])
             raw = base64.urlsafe_b64encode(message.as_bytes()).decode().rstrip("=")
@@ -79,8 +83,10 @@ async def google_action(db: Session, action: str, config: dict, context: dict, u
                 response = await client.post("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart",
                     headers={**headers, "Content-Type": f"multipart/related; boundary={boundary}"}, content=body.encode())
             else:
+                import re
                 file_id = str(config.get("file_id") or "")
-                if not file_id: raise ValueError("file_id requis pour modifier un fichier Drive.")
+                if not re.fullmatch("[A-Za-z0-9_-]+", file_id):
+                    raise ValueError("file_id Drive invalide.")
                 response = await client.patch(f"https://www.googleapis.com/upload/drive/v3/files/{file_id}?uploadType=media",
                     headers={**headers, "Content-Type": mime}, content=content.encode())
             response.raise_for_status()
