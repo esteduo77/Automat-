@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import "./dashboard.css";
 
-const API_BASE = (import.meta.env.VITE_API_URL ?? "").replace(/\/$/, "");
+const API_BASE = window.location.hostname === "localhost" ? "" : "https://automat-api.onrender.com";
 
 type Workflow = { id: string; name: string; updated_at?: string; created_at?: string };
 
